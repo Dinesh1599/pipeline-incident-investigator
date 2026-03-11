@@ -1,0 +1,36 @@
+# ============================================================
+# Dockerfile.agent
+# Investigator API: LangGraph agent + CLI backend
+# ============================================================
+FROM python:3.12-slim
+
+# System dependencies for psycopg2 and general build tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        gcc \
+        libpq-dev \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash agent
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Agent source code is mounted as a volume for development,
+# but copy it in for production builds
+COPY agent/ /app/agent/
+COPY cli/ /app/cli/
+
+# Switch to non-root user
+USER agent
+
+# Expose the agent API port
+EXPOSE 8000
+
+# Default: run the agent API server
+# For CLI usage, override with: docker exec investigator-api python cli/investigate.py
+CMD ["python", "-m", "agent.main"]

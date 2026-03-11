@@ -1,0 +1,26 @@
+# ============================================================
+# Dockerfile.dbt
+# dbt-runner: Executes dbt models against the pipeline database
+# ============================================================
+FROM python:3.12-slim
+
+# System dependencies for psycopg2
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        gcc \
+        libpq-dev \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install dbt-postgres
+RUN pip install --no-cache-dir \
+    dbt-postgres>=1.7.0 \
+    pyyaml>=6.0.0
+
+# Working directory for dbt project (mounted as volume)
+WORKDIR /dbt
+
+# Default command: keep container alive for exec-based dbt runs
+# In practice, Airflow tasks will exec into this container or
+# the DAG will call dbt via BashOperator
+CMD ["tail", "-f", "/dev/null"]

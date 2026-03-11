@@ -1,0 +1,54 @@
+# ============================================================
+# AI Data Pipeline Incident Investigator
+# Requirements File
+# ============================================================
+
+# ── Core Agent Framework ──
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langchain-community>=0.3.0
+
+# ── LLM & Embeddings ──
+openai>=1.50.0
+tiktoken>=0.7.0
+
+# ── Database ──
+psycopg2-binary>=2.9.9
+sqlalchemy>=2.0.0
+pgvector>=0.3.0
+
+# ── Airflow Client (for API calls, not the full Airflow install) ──
+apache-airflow-client>=3.0.0
+requests>=2.31.0
+
+# ── dbt Artifact Parsing ──
+pyyaml>=6.0.0
+
+# ── CLI & Display ──
+rich>=13.7.0
+click>=8.1.0
+
+# ── Observability ──
+langsmith>=0.1.0
+
+# ── Data Handling ──
+pandas>=2.1.0
+
+# ── Utilities ──
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+
+# ── Development & Testing ──
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+black>=24.0.0
+ruff>=0.3.0
+mypy>=1.8.0
+
+# ── Optional: Future Extensions ──
+# streamlit>=1.30.0          # Web UI (Phase 3)
+# fastapi>=0.110.0           # API server (Phase 3)
+# uvicorn>=0.27.0            # ASGI server (Phase 3)
+# neo4j>=5.15.0              # Graph lineage (Phase 3)
+# great-expectations>=0.18.0 # Data validation (Phase 3)
