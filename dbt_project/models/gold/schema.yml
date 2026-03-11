@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: fct_sales
+    description: "Aggregated sales metrics by customer and date"
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: customer_id
+        data_type: integer
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: customer_name
+        data_type: text
+      - name: region
+        data_type: text
+      - name: order_date
+        data_type: date
+        constraints:
+          - type: not_null
+      - name: order_count
+        data_type: bigint
+      - name: daily_revenue
+        data_type: numeric

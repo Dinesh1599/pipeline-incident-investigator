@@ -16,10 +16,13 @@
 #   docker compose up --build     # Rebuild custom images
 # ============================================================
 
-x-airflow-common: &airflow-common
-  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:3.1.7}
+x-airflow-common:
+  #image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:3.1.7}
   # To add custom dependencies, uncomment "build" and comment "image":
-  # build: .
+  &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile.airflow
   env_file:
     - ${ENV_FILE_PATH:-.env}
   environment:
@@ -31,6 +34,13 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
+    # -- for dbt profiles --
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: '5432'
+    POSTGRES_USER: airflow
+    POSTGRES_PASSWORD: airflow
+    PIPELINE_DB: pipeline_db
+    DBT_PROFILES_DIR: /dbt
     # -- Database --
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     # -- Scheduler --
@@ -46,6 +56,8 @@ x-airflow-common: &airflow-common
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/plugins:/opt/airflow/plugins
+    - ${AIRFLOW_PROJ_DIR:-.}/dbt_project:/dbt
+    - ${AIRFLOW_PROJ_DIR:-.}/dbt_project/seeds:/data/seeds
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on
     postgres:

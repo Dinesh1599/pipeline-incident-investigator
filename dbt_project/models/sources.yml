@@ -1,0 +1,23 @@
+version: 2
+
+sources:
+  - name: bronze
+    schema: bronze
+    tables:
+      - name: sales
+        description: "Raw sales data loaded from CSV. All columns are TEXT."
+        columns:
+          - name: order_id
+          - name: customer_id
+          - name: order_date
+          - name: product
+          - name: quantity
+          - name: unit_price
+
+      - name: customers
+        description: "Raw customer data loaded from CSV. All columns are TEXT."
+        columns:
+          - name: customer_id
+          - name: customer_name
+          - name: email
+          - name: region

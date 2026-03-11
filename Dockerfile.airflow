@@ -1,0 +1,10 @@
+# ============================================================
+# Dockerfile.airflow
+# Extends the official Airflow image with dbt-postgres
+# so that BashOperator can run dbt commands directly
+# ============================================================
+FROM apache/airflow:3.1.7
+
+USER airflow
+
+RUN pip install --no-cache-dir dbt-postgres>=1.7.0

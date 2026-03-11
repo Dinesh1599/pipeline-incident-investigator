@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: silver_sales
+    description: "Cleaned and typed sales data"
+    columns:
+      - name: order_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+      - name: order_date
+        tests:
+          - not_null
+      - name: total_amount
+        tests:
+          - not_null
+
+  - name: silver_customers
+    description: "Cleaned and deduplicated customer dimension"
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_name
+        tests:
+          - not_null

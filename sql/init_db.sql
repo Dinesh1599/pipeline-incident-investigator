@@ -1,6 +1,6 @@
 -- ============================================================
 -- init_db.sql
--- Creates additional databases and enables pgvector
+-- Creates additional databases, tables, and enables pgvector
 -- Mounted at /docker-entrypoint-initdb.d/01-init_db.sql
 -- Runs automatically on first postgres container start
 -- ============================================================
@@ -8,11 +8,38 @@
 -- The default 'airflow' database is created by POSTGRES_DB env var.
 -- Create the two additional databases here.
 
--- Pipeline database (bronze/silver/gold sales data)
 CREATE DATABASE pipeline_db;
 
 -- Investigator database (incidents, evidence, vector embeddings)
 CREATE DATABASE investigator_db;
+
+-- ── pipeline_db setup ──────────────────────────────────────
+\connect pipeline_db;
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Create schemas for medallion layers
+CREATE SCHEMA IF NOT EXISTS bronze;
+CREATE SCHEMA IF NOT EXISTS silver;
+CREATE SCHEMA IF NOT EXISTS gold;
+
+-- Bronze tables: all TEXT columns so raw data loads without errors.
+-- Type casting happens in the silver dbt layer.
+CREATE TABLE IF NOT EXISTS bronze.sales (
+    order_id    TEXT,
+    customer_id TEXT,
+    order_date  TEXT,
+    product     TEXT,
+    quantity    TEXT,
+    unit_price  TEXT
+);
+
+CREATE TABLE IF NOT EXISTS bronze.customers (
+    customer_id     TEXT,
+    customer_name   TEXT,
+    email           TEXT,
+    region          TEXT
+);
 
 -- ── investigator_db setup ──────────────────────────────────
 \connect investigator_db;
@@ -76,9 +103,3 @@ CREATE TABLE IF NOT EXISTS pipeline_object_mappings (
     target_table    VARCHAR,
     source_tables   TEXT[]
 );
-
--- ── pipeline_db setup ──────────────────────────────────────
-\connect pipeline_db;
-
--- Enable pgvector on pipeline_db (for any future use)
-CREATE EXTENSION IF NOT EXISTS vector;
