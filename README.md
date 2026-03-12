@@ -1,5 +1,5 @@
 ## Pipeline Architecture
-    ***This is the invetigation flow: Work in progress***
+***This is the invetigation flow: Work in progress***
 ### Legend
 
 - Purple nodes — LLM calls (GPT-4o-mini or GPT-4o) with cost per call
