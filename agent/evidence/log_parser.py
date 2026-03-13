@@ -10,13 +10,12 @@ Extracts the most relevant portions of a log for investigation:
 Also provides regex-based signal extraction for common Postgres and
 dbt error patterns, supplementing the LLM signal extraction node.
 
-Blueprint reference: Section 15 (Log Truncation Strategy),
-Section 9.2 (Node 3: Signal Extractor)
 """
 
 import re
 import logging
 from typing import Optional
+import pprint #Delete later
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,6 @@ ERROR_KEYWORDS = ["ERROR", "FATAL", "WARNING", "EXCEPTION", "Traceback"]
 def truncate_log(raw_log: str, tail_lines: int = TAIL_LINES) -> str:
     """Truncate a raw log to the most relevant lines.
 
-    From blueprint Section 15:
         - Extract the last 50 lines of the Airflow task log.
         - Additionally extract lines containing ERROR, FATAL, WARNING, EXCEPTION.
         - For each error line, include 5 lines before and after for context.
@@ -49,22 +47,22 @@ def truncate_log(raw_log: str, tail_lines: int = TAIL_LINES) -> str:
         return ""
 
     lines = raw_log.splitlines()
-    total_lines = len(lines)
+    total_lines = len(lines) #10
 
-    if total_lines <= tail_lines:
-        return raw_log
+    if total_lines <= tail_lines: #10 <= 50
+        return raw_log #return the raw log
 
     # Collect line indices to include
     included = set()
 
     # Always include the last N lines
-    for i in range(max(0, total_lines - tail_lines), total_lines):
-        included.add(i)
+    for i in range(max(0, total_lines - tail_lines), total_lines): #range(max(0, 10 - 50), 10) -> range(0, 10)
+        included.add(i) #add the line index to the set
 
     # Find error lines and add context
-    for i, line in enumerate(lines):
+    for i, line in enumerate(lines): 
         if any(keyword in line for keyword in ERROR_KEYWORDS):
-            start = max(0, i - CONTEXT_LINES)
+            start = max(0, i - CONTEXT_LINES) 
             end = min(total_lines, i + CONTEXT_LINES + 1)
             for j in range(start, end):
                 included.add(j)
@@ -178,14 +176,26 @@ def extract_signals_regex(log_text: str) -> dict:
     for pattern_name, pattern_info in ERROR_PATTERNS.items():
         match = re.search(pattern_info["pattern"], log_text, re.IGNORECASE)
         if match:
-            signals["error_type"] = pattern_info["error_type"]
-            signals["error_message"] = match.group(0)
-            signals["sql_state_code"] = pattern_info["sql_state"]
-            signals["regex_matches"].append({
+            signals['regex_matches'].append({
                 "pattern": pattern_name,
                 "match": match.group(0),
-                "groups": match.groups(),
+                "groups": match.groups()
             })
+    
+    for m in signals['regex_matches']:
+        pattern_info = ERROR_PATTERNS[m["pattern"]]
+        if pattern_info["sql_state"] is not None:
+            signals["sql_state_code"] = pattern_info["sql_state"]
+            signals["error_type"] = pattern_info["error_type"]
+            signals["error_message"] = m["match"]
+            break
+    
+    if signals["error_type"] is None and signals['regex_matches']:
+        first = signals["regex_matches"][0]
+        pattern_info = ERROR_PATTERNS[first["pattern"]]
+        signals["error_type"] = pattern_info["error_type"]
+        signals["error_message"] = first["match"]
+        signals["sql_state_code"] = pattern_info["sql_state"]
 
     # Extract referenced objects
     for match in OBJECT_PATTERNS["table_reference"].finditer(log_text):

@@ -6,10 +6,7 @@ Provides:
     - Table metadata (row counts, existence checks)
     - Read-only query execution with timeout and safety constraints
 
-Blueprint reference: Section 8 (Stage 4: Error Message Parsing),
-Section 9.2 (Node 2: Context Collector, Node 6: Database Evidence Analyzer)
-
-Safety constraints (from blueprint Section 11):
+Safety constraints:
     - All queries use parameterized templates. No LLM-generated SQL.
     - All queries include LIMIT clauses.
     - Read-only connection.
@@ -21,6 +18,10 @@ import logging
 import os
 from typing import Optional
 
+
+from dotenv import load_dotenv
+load_dotenv(".env.local")
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -30,7 +31,7 @@ QUERY_TIMEOUT_MS = 10000  # 10 seconds
 
 
 class PostgresConnector:
-    """Connects to pipeline_db for metadata queries and evidence checks."""
+    #Connects to pipeline_db for metadata queries and evidence checks.
 
     def __init__(
         self,
