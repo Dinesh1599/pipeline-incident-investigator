@@ -103,5 +103,5 @@ def build_user_message(
         for key, value in pipeline_metadata.items():
             if value:
                 parts.append(f"  {key}: {value}")
-
+    
     return "\n".join(parts)

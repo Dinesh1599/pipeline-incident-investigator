@@ -62,7 +62,7 @@ GROUP BY
 """.strip()
 
 
-def parse_json_response(text: str) -> dict:
+def parse_json_response(text: str) -> dict:  # for debugging and cleaning up markdown fences
     """Parse JSON from LLM response, handling markdown fences."""
     cleaned = text.strip()
     if cleaned.startswith("```json"):
@@ -71,6 +71,15 @@ def parse_json_response(text: str) -> dict:
         cleaned = cleaned[3:]
     if cleaned.endswith("```"):
         cleaned = cleaned[:-3]
+    # print("\n")
+    # print("\n")
+    # print("\n")
+    # print("JSON RESPONSE:")
+    # print("\n")
+    # print(cleaned.strip())
+    # print("\n")
+    # print("\n")
+    # print("\n") 
     return json.loads(cleaned.strip())
 
 
@@ -107,10 +116,28 @@ def test_classification_prompt(extracted_signals: dict):
     }
 
     user_msg = classification.build_user_message(extracted_signals, pipeline_metadata)
+    # print("\n")
+    # print("\n")
+    # print("\n")
+    # print("USER MESSAGE:")
+    # print("\n")
+    # print(user_msg)
+    # print("\n")
+    # print("\n")
+    # print("\n") 
     response = llm.invoke([
         {"role": "system", "content": classification.SYSTEM_PROMPT},
         {"role": "user", "content": user_msg},
     ])
+    # print("\n")
+    # print("\n")
+    # print("\n")
+    # print("RESPONSE:")
+    # print("\n")
+    # print(response.content)
+    # print("\n")
+    # print("\n")
+    # print("\n")
 
     result = parse_json_response(response.content)
     print(f"  primary_class: {result.get('primary_class')}")
@@ -252,7 +279,7 @@ if __name__ == "__main__":
     signals = test_extraction_prompt()
     classification_result = test_classification_prompt(signals)
     code_findings = test_code_inspection_prompt(signals, classification_result)
-    reasoning_result = test_reasoning_prompt(signals, classification_result, code_findings)
-    test_fix_generation_prompt(reasoning_result)
+    #reasoning_result = test_reasoning_prompt(signals, classification_result, code_findings)
+    #test_fix_generation_prompt(reasoning_result)
 
     print("All prompt tests passed.")
