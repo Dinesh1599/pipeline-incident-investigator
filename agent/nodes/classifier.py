@@ -4,19 +4,15 @@ classifier.py — Node 4: Classifier
 Sends extracted signals plus pipeline metadata to GPT-4o-mini
 with a classification prompt. Outputs primary class, optional
 secondary class, confidence, reasoning, and investigation priorities.
-
-Blueprint reference: Section 9.2 (Node 4), Section 10.2
 """
 
-import json
 import logging
-
-from langchain_openai import ChatOpenAI
 
 from agent.state import InvestigationState
 from agent.prompts import classification
-from agent.utils.config import MODELS, LLM_TEMPERATURE
+from agent.utils.config import MODELS
 from agent.utils.context_budget import get_output_budget
+from agent.utils.llm_caller import call_llm_json
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +26,6 @@ def classifier_node(state: InvestigationState) -> dict:
             investigation_priorities
     """
     extracted_signals = state.get("extracted_signals", {})
-    pipeline_metadata = state.get("pipeline_metadata", {})
     dbt_model = state.get("dbt_model")
     question = state.get("question")
 
@@ -41,78 +36,44 @@ def classifier_node(state: InvestigationState) -> dict:
         "model_name": dbt_model or "unknown",
     }
 
-    # Add model description from manifest if available
     manifest_entry = state.get("dbt_manifest_entry", {})
     if manifest_entry.get("description"):
         metadata_summary["model_description"] = manifest_entry["description"]
 
     logger.info("[CLASSIFY] Calling GPT-4o-mini for classification...")
 
-    try:
-        llm = ChatOpenAI(
-            model=MODELS["classification"],
-            temperature=LLM_TEMPERATURE,
-            max_tokens=get_output_budget("classification"),
-        )
+    user_msg = classification.build_user_message(
+        extracted_signals=extracted_signals,
+        pipeline_metadata=metadata_summary,
+        question=question,
+    )
 
-        user_msg = classification.build_user_message(
-            extracted_signals=extracted_signals,
-            pipeline_metadata=metadata_summary,
-            question=question,
-        )
+    result = call_llm_json(
+        model=MODELS["classification"],
+        system_prompt=classification.SYSTEM_PROMPT,
+        user_message=user_msg,
+        max_tokens=get_output_budget("classification"),
+        node_name="CLASSIFY",
+    )
 
-        response = llm.invoke([
-            {"role": "system", "content": classification.SYSTEM_PROMPT},
-            {"role": "user", "content": user_msg},
-        ])
-
-        result = _parse_classification(response.content)
-
+    if result and result.get("primary_class"):
         logger.info(
             "[CLASSIFY] Classification: %s (confidence: %.2f)",
             result.get("primary_class", "unknown"),
             result.get("confidence", 0.0),
         )
-
         return {
             "failure_class": result.get("primary_class", "unknown"),
             "secondary_class": result.get("secondary_class"),
             "classification_confidence": result.get("confidence", 0.0),
             "investigation_priorities": result.get("investigation_priorities", []),
         }
-
-    except Exception as e:
-        logger.error("[CLASSIFY] Classification failed: %s", e)
+    else:
         return _fallback_classification(extracted_signals)
 
 
-def _parse_classification(response_text: str) -> dict:
-    """Parse classification JSON from LLM response."""
-    cleaned = response_text.strip()
-    if cleaned.startswith("```json"):
-        cleaned = cleaned[7:]
-    if cleaned.startswith("```"):
-        cleaned = cleaned[3:]
-    if cleaned.endswith("```"):
-        cleaned = cleaned[:-3]
-
-    try:
-        return json.loads(cleaned.strip())
-    except json.JSONDecodeError:
-        logger.warning("[CLASSIFY] Malformed JSON, attempting extraction...")
-        # Try to find JSON in the response
-        import re
-        json_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-        raise
-
-
 def _fallback_classification(signals: dict) -> dict:
-    """Rule-based fallback when LLM classification fails.
-
-    Maps common error types to failure classes deterministically.
-    """
+    """Rule-based fallback when LLM classification fails."""
     error_type = signals.get("error_type", "")
 
     fallback_map = {

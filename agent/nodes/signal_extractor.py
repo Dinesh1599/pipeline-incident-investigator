@@ -4,8 +4,6 @@ signal_extractor.py — Node 3: Signal Extractor
 Sends the raw log (pre-truncated) to GPT-4o-mini with a structured
 extraction prompt. Also runs regex-based extraction as a supplement.
 Merges LLM extraction with regex extraction.
-
-Blueprint reference: Section 9.2 (Node 3), Section 10.1
 """
 
 import logging
