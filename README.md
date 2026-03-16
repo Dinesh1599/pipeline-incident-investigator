@@ -120,3 +120,13 @@ graph TD
     class C1,C2,C3,C4 connector
 
 ```
+
+
+## Added graph, node, and agent files
+
+- graph.py
+    - Contains the LangGraph workflow
+- node.py
+    - Contains the nodes for the LangGraph workflow
+- agent.py
+    - Contains the agent for the LangGraph workflow
