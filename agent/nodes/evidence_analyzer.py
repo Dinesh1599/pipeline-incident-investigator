@@ -7,7 +7,7 @@ Postgres. Formats results as structured evidence.
 
 Never generates SQL dynamically from LLM output for safety.
 
-Blueprint reference: Section 9.2 (Node 6), Section 11
+
 """
 
 import logging
