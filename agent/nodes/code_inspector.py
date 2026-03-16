@@ -5,17 +5,17 @@ Sends the dbt model SQL plus failure context and evidence results
 to GPT-4o. Identifies code constructs causing or contributing to
 the failure.
 
+Blueprint reference: Section 9.2 (Node 7), Section 10.3
 """
 
 import json
 import logging
 
-from langchain_openai import ChatOpenAI
-
 from agent.state import InvestigationState
 from agent.prompts import code_inspection
-from agent.utils.config import MODELS, LLM_TEMPERATURE
+from agent.utils.config import MODELS
 from agent.utils.context_budget import prepare_context, get_output_budget
+from agent.utils.llm_caller import call_llm_json
 
 logger = logging.getLogger(__name__)
 
@@ -44,35 +44,23 @@ def code_inspector_node(state: InvestigationState) -> dict:
 
     logger.info("[CODE] Inspecting %s.sql (%d lines)...", dbt_model, len(code_context.splitlines()))
 
-    try:
-        # Budget context
-        prepared = prepare_context("code_inspection", {
-            "signals": json.dumps(signals, default=str),
-            "evidence": json.dumps(evidence, default=str),
-            "code": code_context,
-        })
+    user_msg = code_inspection.build_user_message(
+        failure_context=signals,
+        classification=classification,
+        evidence_results=evidence,
+        model_sql=code_context,
+        model_name=dbt_model,
+    )
 
-        llm = ChatOpenAI(
-            model=MODELS["code_inspection"],
-            temperature=LLM_TEMPERATURE,
-            max_tokens=get_output_budget("code_inspection"),
-        )
+    result = call_llm_json(
+        model=MODELS["code_inspection"],
+        system_prompt=code_inspection.SYSTEM_PROMPT,
+        user_message=user_msg,
+        max_tokens=get_output_budget("code_inspection"),
+        node_name="CODE",
+    )
 
-        user_msg = code_inspection.build_user_message(
-            failure_context=signals,
-            classification=classification,
-            evidence_results=evidence,
-            model_sql=code_context,
-            model_name=dbt_model,
-        )
-
-        response = llm.invoke([
-            {"role": "system", "content": code_inspection.SYSTEM_PROMPT},
-            {"role": "user", "content": user_msg},
-        ])
-
-        result = _parse_json(response.content)
-
+    if result:
         findings_count = len(result.get("findings", []))
         logger.info("[CODE] Found %d issues in %s.sql", findings_count, dbt_model)
         for f in result.get("findings", []):
@@ -82,21 +70,7 @@ def code_inspector_node(state: InvestigationState) -> dict:
                 f.get("location", "?"),
                 f.get("issue", "")[:80],
             )
+    else:
+        logger.warning("[CODE] Code inspection returned no results")
 
-        return {"code_findings": result}
-
-    except Exception as e:
-        logger.error("[CODE] Code inspection failed: %s", e)
-        return {"code_findings": {}}
-
-
-def _parse_json(text: str) -> dict:
-    """Parse JSON from LLM response."""
-    cleaned = text.strip()
-    if cleaned.startswith("```json"):
-        cleaned = cleaned[7:]
-    if cleaned.startswith("```"):
-        cleaned = cleaned[3:]
-    if cleaned.endswith("```"):
-        cleaned = cleaned[:-3]
-    return json.loads(cleaned.strip())
+    return {"code_findings": result}
