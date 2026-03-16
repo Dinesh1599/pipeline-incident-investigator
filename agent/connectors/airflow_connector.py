@@ -12,11 +12,11 @@ Blueprint reference: Section 9.2 (Node 2: Context Collector), Section 8 (Targeti
 import os
 import logging
 from typing import Optional
-from dotenv import load_dotenv
+
 
 import requests
 
-load_dotenv('../.env.local')
+
 
 logger = logging.getLogger(__name__)
 
@@ -94,15 +94,30 @@ class AirflowConnector:
                 timeout=15,
             )
             response.raise_for_status()
-            #return response.text
-            #Added my own stuff here #TODO
             content_type = response.headers.get("Content-Type", "")
             if "application/json" in content_type:
                 payload = response.json()
-                if isinstance(payload, dict):
-                    return payload.get("content", "") or payload.get("message", "")
-                return str(payload)
+                content = payload.get("content", [])
+                if isinstance(content, list):
+                    # Airflow 3 returns structured log entries
+                    lines = []
+                    for entry in content:
+                        if isinstance(entry, dict):
+                            ts = entry.get("timestamp", "")
+                            level = entry.get("level", "info").upper()
+                            event = entry.get("event", "")
+                            if ts:
+                                lines.append(f"[{ts}] {level} - {event}")
+                            elif event:
+                                lines.append(event)
+                        else:
+                            lines.append(str(entry))
+                    return "\n".join(lines)
+                elif isinstance(content, str):
+                    return content
+                return str(content)
             return response.text
+
 
         except requests.exceptions.RequestException as e:
             logger.error("Failed to fetch task logs: %s", e)

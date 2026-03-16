@@ -52,7 +52,7 @@ def context_collector_node(state: InvestigationState) -> dict:
             "all_task_instances": airflow_context.get("all_task_instances", []),
         }
 
-        log_lines = len(updates["logs_raw"]) if updates["logs_raw"] else 0
+        log_lines = len(updates["logs_raw"].splitlines()) if updates["logs_raw"] else 0
         logger.info("[CONTEXT] Airflow logs: %d lines", log_lines)
     except Exception as e:
         logger.error("[CONTEXT] Airflow context collection failed: %s", e)
