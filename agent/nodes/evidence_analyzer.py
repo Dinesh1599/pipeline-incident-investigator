@@ -48,6 +48,26 @@ def evidence_analyzer_node(state: InvestigationState) -> dict:
         objects_ref = signals.get("objects_referenced", {})
         if not target_objects.get("column") and objects_ref.get("columns"):
             target_objects["column"] = objects_ref["columns"][0]
+        
+        # If target is a dbt temp table, redirect to upstream source
+        table = target_objects.get("table", "")
+        if table.endswith("__dbt_tmp"):
+            logger.info(
+                "[EVIDENCE] Target %s is a dbt temp table, redirecting to upstream sources",
+                table,
+            )
+            sources = lineage.get("upstream_sources", [])
+            models = lineage.get("upstream_models", [])
+            if sources:
+                target_objects["schema"] = sources[0].get("schema", "bronze")
+                target_objects["table"] = sources[0].get("table_name", "")
+            elif models:
+                model_name = models[0]
+                if model_name.startswith("silver_"):
+                    target_objects["schema"] = "silver"
+                target_objects["table"] = model_name
+
+        
 
         # ── Run checks for the primary failure class ────────
         evidence = []
