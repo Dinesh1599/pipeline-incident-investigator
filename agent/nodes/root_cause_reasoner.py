@@ -2,22 +2,16 @@
 root_cause_reasoner.py — Node 10: Root Cause Reasoner
 
 The most important LLM call. Sends all gathered evidence to GPT-4o
-with explicit chain-of-thought instructions. The prompt presents
-evidence in clearly labeled sections and instructs the LLM to
-consider each piece, identify what it confirms and rules out,
-evaluate competing hypotheses, and select the best-supported root cause.
-
+with explicit chain-of-thought instructions.
 """
 
-import json
 import logging
-
-from langchain_openai import ChatOpenAI
 
 from agent.state import InvestigationState
 from agent.prompts import reasoning
-from agent.utils.config import MODELS, LLM_TEMPERATURE
+from agent.utils.config import MODELS
 from agent.utils.context_budget import get_output_budget
+from agent.utils.llm_caller import call_llm_json
 
 logger = logging.getLogger(__name__)
 
@@ -58,33 +52,37 @@ def root_cause_reasoner_node(state: InvestigationState) -> dict:
         len(similar_incidents),
     )
 
-    try:
-        llm = ChatOpenAI(
-            model=MODELS["root_cause_reasoning"],
-            temperature=LLM_TEMPERATURE,
-            max_tokens=get_output_budget("root_cause_reasoning"),
-        )
+    # ── Apply confidence caps based on evidence availability ──
+    confidence_cap = 1.0
+    if not logs_available:
+        confidence_cap = min(confidence_cap, 0.7)
+        logger.info("  Logs unavailable — confidence capped at 0.7")
+    if not db_available:
+        confidence_cap = min(confidence_cap, 0.5)
+        logger.info("  DB evidence unavailable — confidence capped at 0.5")
 
-        user_msg = reasoning.build_user_message(
-            failure_signals=signals,
-            classification=classification,
-            database_evidence=all_evidence,
-            code_findings=code_findings,
-            lineage_context=lineage,
-            similar_incidents=similar_incidents,
-            logs_available=logs_available,
-            db_evidence_available=db_available,
-        )
+    user_msg = reasoning.build_user_message(
+        failure_signals=signals,
+        classification=classification,
+        database_evidence=all_evidence,
+        code_findings=code_findings,
+        lineage_context=lineage,
+        similar_incidents=similar_incidents,
+        logs_available=logs_available,
+        db_evidence_available=db_available,
+    )
 
-        response = llm.invoke([
-            {"role": "system", "content": reasoning.SYSTEM_PROMPT},
-            {"role": "user", "content": user_msg},
-        ])
+    result = call_llm_json(
+        model=MODELS["root_cause_reasoning"],
+        system_prompt=reasoning.SYSTEM_PROMPT,
+        user_message=user_msg,
+        max_tokens=get_output_budget("root_cause_reasoning"),
+        node_name="REASONING",
+    )
 
-        result = _parse_json(response.content)
-
+    if result:
         root_cause = result.get("root_cause", "Unable to determine root cause")
-        confidence = result.get("confidence", 0.0)
+        confidence = min(result.get("confidence", 0.0), confidence_cap)
         evidence_chain = result.get("evidence_chain", [])
         alternatives = result.get("alternative_causes_considered", [])
 
@@ -99,24 +97,11 @@ def root_cause_reasoner_node(state: InvestigationState) -> dict:
             "confidence": confidence,
             "alternative_causes": alternatives,
         }
-
-    except Exception as e:
-        logger.error("[REASONING] Root cause reasoning failed: %s", e)
+    else:
+        logger.error("[REASONING] Root cause reasoning returned no results")
         return {
-            "root_cause": f"Analysis failed: {e}",
+            "root_cause": "Analysis failed — LLM returned no usable response",
             "evidence_chain": [],
             "confidence": 0.0,
             "alternative_causes": [],
         }
-
-
-def _parse_json(text: str) -> dict:
-    """Parse JSON from LLM response."""
-    cleaned = text.strip()
-    if cleaned.startswith("```json"):
-        cleaned = cleaned[7:]
-    if cleaned.startswith("```"):
-        cleaned = cleaned[3:]
-    if cleaned.endswith("```"):
-        cleaned = cleaned[:-3]
-    return json.loads(cleaned.strip())
