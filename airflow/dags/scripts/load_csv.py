@@ -30,7 +30,7 @@ def load_csv(table_name: str, csv_path: str) -> None:
         cur.execute(f"TRUNCATE TABLE {table_name} CASCADE")
         with open(csv_path, "r") as f:
             cur.copy_expert(
-                f"COPY {table_name} FROM STDIN WITH CSV HEADER", f
+                f"COPY {table_name} FROM STDIN WITH CSV HEADER NULL ''", f
             )
         conn.commit()
         row_count_query = f"SELECT COUNT(*) FROM {table_name}"

@@ -13,7 +13,10 @@ import os
 import logging
 from typing import Optional
 
+
 import requests
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +37,25 @@ class AirflowConnector:
         self.username = username or os.environ.get("AIRFLOW_API_USER", "airflow")
         self.password = password or os.environ.get("AIRFLOW_API_PASSWORD", "airflow")
         self.session = requests.Session()
-        self.session.auth = (self.username, self.password)
         self.session.headers.update({"Content-Type": "application/json"})
+
+        # Airflow 3 uses token-based auth (basic auth was removed)
+        self._authenticate()
+
+    def _authenticate(self) -> None: # creates auth token for airflow api
+        """Get a JWT token from Airflow 3's /auth/token endpoint."""
+        try:
+            response = requests.post(
+                f"{self.base_url}/auth/token",
+                json={"username": self.username, "password": self.password},
+                timeout=10,
+            )
+            response.raise_for_status()
+            token = response.json().get("access_token")
+            self.session.headers.update({"Authorization": f"Bearer {token}"})
+            logger.info("Airflow API authenticated successfully")
+        except requests.exceptions.RequestException as e:
+            logger.error("Airflow API authentication failed: %s", e)
 
     def _get(self, endpoint: str, params: Optional[dict] = None) -> dict:
         """Make a GET request to the Airflow API."""
@@ -53,13 +73,14 @@ class AirflowConnector:
         dag_id: str,
         run_id: str,
         task_id: str,
-        try_number: int = 1,
+        try_number: int = 0,
     ) -> str:
         """Fetch task logs for a specific task instance.
 
         Returns the raw log text. The log parser module handles
         truncation and extraction.
         """
+
         endpoint = (
             f"dags/{dag_id}/dagRuns/{run_id}/"
             f"taskInstances/{task_id}/logs/{try_number}"
@@ -69,11 +90,35 @@ class AirflowConnector:
             response = self.session.get(
                 url,
                 params={"full_content": True},
-                headers={"Accept": "text/plain"},
+                #headers={"Accept": "text/plain"},
                 timeout=15,
             )
             response.raise_for_status()
+            content_type = response.headers.get("Content-Type", "")
+            if "application/json" in content_type:
+                payload = response.json()
+                content = payload.get("content", [])
+                if isinstance(content, list):
+                    # Airflow 3 returns structured log entries
+                    lines = []
+                    for entry in content:
+                        if isinstance(entry, dict):
+                            ts = entry.get("timestamp", "")
+                            level = entry.get("level", "info").upper()
+                            event = entry.get("event", "")
+                            if ts:
+                                lines.append(f"[{ts}] {level} - {event}")
+                            elif event:
+                                lines.append(event)
+                        else:
+                            lines.append(str(entry))
+                    return "\n".join(lines)
+                elif isinstance(content, str):
+                    return content
+                return str(content)
             return response.text
+
+
         except requests.exceptions.RequestException as e:
             logger.error("Failed to fetch task logs: %s", e)
             return ""
@@ -124,8 +169,12 @@ class AirflowConnector:
         Returns a dict with logs, task metadata, DAG run info, and
         upstream task statuses.
         """
-        logs = self.get_task_logs(dag_id, run_id, task_id)
         task_instance = self.get_task_instance(dag_id, run_id, task_id)
+        try_number = task_instance.get("try_number", 0)
+        logs = self.get_task_logs(dag_id, run_id, task_id, try_number = try_number)
+        if not logs and try_number != 0:
+            logs = self.get_task_logs(dag_id, run_id, task_id, try_number = 0)
+        
         dag_run = self.get_dag_run(dag_id, run_id)
         dag_details = self.get_dag_details(dag_id)
         all_tasks = self.get_task_instances_for_run(dag_id, run_id)
