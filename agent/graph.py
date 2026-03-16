@@ -1,17 +1,15 @@
 """
 graph.py — LangGraph workflow definition.
 
-Wires all investigation nodes into a directed graph.
-The graph follows the architecture from blueprint Section 9.2.
+Wires all 12 investigation nodes into a directed graph.
 
 Flow:
     intake → context_collector → signal_extractor → classifier
     → router (conditional) → evidence_analyzer → [code_inspector]
     → lineage_tracer → incident_retriever → root_cause_reasoner
-    → fix_generator → response_formatter
+    → fix_generator → response_formatter → END
 
-Day 6: Nodes 1-5 (intake through router)
-Day 7: Nodes 6-12 (evidence through response formatter)
+
 """
 
 import logging
@@ -24,6 +22,13 @@ from agent.nodes.context_collector import context_collector_node
 from agent.nodes.signal_extractor import signal_extractor_node
 from agent.nodes.classifier import classifier_node
 from agent.nodes.router import route_investigation
+from agent.nodes.evidence_analyzer import evidence_analyzer_node
+from agent.nodes.code_inspector import code_inspector_node
+from agent.nodes.lineage_tracer import lineage_tracer_node
+from agent.nodes.incident_retriever import incident_retriever_node
+from agent.nodes.root_cause_reasoner import root_cause_reasoner_node
+from agent.nodes.fix_generator import fix_generator_node
+from agent.nodes.response_formatter import response_formatter_node
 
 logger = logging.getLogger(__name__)
 
@@ -38,20 +43,18 @@ def build_graph() -> StateGraph:
     graph.add_node("context_collector", context_collector_node)
     graph.add_node("signal_extractor", signal_extractor_node)
     graph.add_node("classifier", classifier_node)
-
-    # Placeholder nodes for Day 7 — currently pass through
-    graph.add_node("evidence_analyzer", _placeholder_node("evidence_analyzer"))
-    graph.add_node("code_inspector", _placeholder_node("code_inspector"))
-    graph.add_node("lineage_tracer", _placeholder_node("lineage_tracer"))
-    graph.add_node("incident_retriever", _placeholder_node("incident_retriever"))
-    graph.add_node("root_cause_reasoner", _placeholder_node("root_cause_reasoner"))
-    graph.add_node("fix_generator", _placeholder_node("fix_generator"))
-    graph.add_node("response_formatter", _placeholder_node("response_formatter"))
+    graph.add_node("evidence_analyzer", evidence_analyzer_node)
+    graph.add_node("code_inspector", code_inspector_node)
+    graph.add_node("lineage_tracer", lineage_tracer_node)
+    graph.add_node("incident_retriever", incident_retriever_node)
+    graph.add_node("root_cause_reasoner", root_cause_reasoner_node)
+    graph.add_node("fix_generator", fix_generator_node)
+    graph.add_node("response_formatter", response_formatter_node)
 
     # ── Set entry point ─────────────────────────────────────
     graph.set_entry_point("intake")
 
-    # ── Add edges (Node 1 → 2 → 3 → 4) ────────────────────
+    # ── Edges: Node 1 → 2 → 3 → 4 ─────────────────────────
     graph.add_edge("intake", "context_collector")
     graph.add_edge("context_collector", "signal_extractor")
     graph.add_edge("signal_extractor", "classifier")
@@ -107,15 +110,3 @@ def _should_inspect_code(state: InvestigationState) -> str:
     if failure_class in code_classes and has_code:
         return "inspect_code"
     return "skip_code"
-
-
-def _placeholder_node(name: str):
-    """Create a placeholder node that logs and passes through.
-
-    These will be replaced with real implementations on Day 7.
-    """
-    def node_fn(state: InvestigationState) -> dict:
-        logger.info("[%s] Placeholder — will be implemented on Day 7", name.upper())
-        return {}
-
-    return node_fn
