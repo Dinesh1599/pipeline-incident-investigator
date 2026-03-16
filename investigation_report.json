@@ -1,0 +1,40 @@
+{
+  "incident_id": "INC-20260316111214-bb097f",
+  "severity": "error",
+  "failure_class": "data_quality",
+  "what_failed": "fct_sales model failed with not_null_violation \u2014 null value in column \"customer_id\" of relation \"fct_sales__dbt_tmp\" violates not-null constraint",
+  "where_failed": {
+    "dag_id": "sales_pipeline",
+    "task_id": "run_dbt_fct_sales",
+    "model": "fct_sales",
+    "table": "silver_sales",
+    "column": "customer_id"
+  },
+  "how_it_failed": "LEFT JOIN without null filter on customer_id allows NULL rows to propagate to the output, causing NOT NULL constraint violation.",
+  "root_cause": "The LEFT JOIN in the fct_sales model does not filter out NULL customer_id values from silver_sales, allowing them to propagate and violate the NOT NULL constraint in fct_sales__dbt_tmp.",
+  "evidence_chain": [
+    "Error message indicates a not_null_violation due to null value in customer_id.",
+    "Database evidence shows 15 null customer_id values in fct_sales__dbt_tmp.",
+    "Code inspection reveals a LEFT JOIN without a filter for NULL customer_id, allowing NULLs to propagate.",
+    "Similar past incident INC-20260316110601-9b53ea had the same root cause and was resolved by adding a WHERE filter."
+  ],
+  "confidence": 0.95,
+  "alternative_causes_considered": [
+    {
+      "cause": "Source CSV contained rows with missing customer_id.",
+      "ruled_out_by": "Database evidence shows no nulls in silver_customers, indicating the issue is not from the source CSV."
+    },
+    {
+      "cause": "Duplicate order_id values causing data issues.",
+      "ruled_out_by": "The error is specifically a not_null_violation on customer_id, not related to duplicates."
+    }
+  ],
+  "fix": {
+    "immediate": "Add WHERE ss.customer_id IS NOT NULL filter to fct_sales.sql before the JOIN on line 18",
+    "preventive": "Add a not_null dbt test on silver_sales.customer_id in models/silver/schema.yml",
+    "monitoring": "Add an alert that triggers when null count in silver_sales.customer_id exceeds 1% of total rows"
+  },
+  "prevention": [
+    "Implement a dbt test to check for null values in fct_sales__dbt_tmp.customer_id after the JOIN operation"
+  ]
+}
