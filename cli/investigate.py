@@ -176,9 +176,9 @@ def _replay_incident(incident_id: str):
         "where_failed": {
             "dag_id": incident.get("dag_id"),
             "task_id": incident.get("task_id"),
-            "model": "",
-            "table": "",
-            "column": "",
+            "model": incident.get("dbt_model", ""),
+            "table": incident.get("target_table", ""),
+            "column": incident.get("target_column", ""),
         },
         "how_it_failed": "",
         "root_cause": incident.get("root_cause"),

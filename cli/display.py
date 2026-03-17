@@ -73,7 +73,7 @@ def print_report(report: dict):
 
     # What Failed
     console.print(Panel(
-        report.get("what_failed", "Unknown"),
+        report.get("what_failed") or "Unknown",
         title="[bold red]What Failed[/bold red]",
         border_style="red",
     ))
@@ -96,14 +96,14 @@ def print_report(report: dict):
 
     # How It Failed
     console.print(Panel(
-        report.get("how_it_failed", "Unknown"),
+        report.get("how_it_failed") or "Not determined",
         title="[bold]How It Failed[/bold]",
         border_style="white",
     ))
 
     # Root Cause
     console.print(Panel(
-        report.get("root_cause", "Unable to determine"),
+        report.get("root_cause") or "Unable to determine",
         title="[bold magenta]Root Cause[/bold magenta]",
         border_style="magenta",
     ))

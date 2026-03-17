@@ -1,7 +1,7 @@
 {
   "results": {
     "null_join_key": {
-      "incident_id": "INC-20260317062549-c6efc8",
+      "incident_id": "INC-20260317105129-faffa4",
       "severity": "error",
       "failure_class": "data_quality",
       "what_failed": "fct_sales model failed with not_null_violation \u2014 null value in column \"customer_id\" of relation \"fct_sales__dbt_tmp\" violates not-null constraint",
@@ -15,21 +15,21 @@
       "how_it_failed": "LEFT JOIN without null filter on customer_id allows NULL rows to propagate to the output, causing NOT NULL constraint violation.",
       "root_cause": "The fct_sales model's LEFT JOIN on silver_sales and silver_customers allows NULL customer_id values from silver_sales to propagate to fct_sales__dbt_tmp, violating the NOT NULL constraint.",
       "evidence_chain": [
-        "null_check on fct_sales__dbt_tmp shows 15 null customer_id values.",
-        "silver.silver_sales has 15 null customer_id values.",
-        "LEFT JOIN clause in fct_sales model does not filter out NULL customer_id values.",
-        "No WHERE clause filters out NULL customer_id before the join in fct_sales model.",
-        "Similar past incident INC-20260317054258 had the same root cause and was resolved by adding a WHERE filter."
+        "null_check on fct_sales__dbt_tmp shows 15 null customer_id values",
+        "silver.silver_sales has 15 null customer_id values",
+        "LEFT JOIN clause in fct_sales model does not filter out NULL customer_id values",
+        "No WHERE clause filters out NULL customer_id before the join in fct_sales model",
+        "Similar past incidents confirm the same root cause and fix"
       ],
       "confidence": 0.92,
       "alternative_causes_considered": [
         {
-          "cause": "Source CSV contained rows with missing customer_id.",
-          "ruled_out_by": "silver.silver_sales already has 15 null customer_id values, indicating the issue is not at the bronze layer."
+          "cause": "Data ingestion issue in bronze layer",
+          "ruled_out_by": "silver.silver_sales already contains NULL customer_id values, indicating the issue is not at the bronze layer"
         },
         {
-          "cause": "Duplicate order_id values causing issues.",
-          "ruled_out_by": "The error is related to null customer_id values, not duplicates."
+          "cause": "Issue in silver_customers table",
+          "ruled_out_by": "silver.silver_customers has 0 null customer_id values, confirming the issue is not in this table"
         }
       ],
       "fix": {
@@ -38,7 +38,7 @@
         "monitoring": "Add an alert that triggers when null count in silver.sales.customer_id exceeds 1% of total rows"
       },
       "prevention": [
-        "Implement a data quality check to ensure no NULL values in critical join keys across all silver models."
+        "Implement a data quality check to ensure no NULL values in critical join keys like customer_id before running transformations."
       ]
     }
   },
@@ -49,8 +49,8 @@
       "column_identified": 1.0,
       "root_cause": 1.0,
       "fix_actionable": 1.0,
-      "prevention": 0.5,
-      "total": 5.5
+      "prevention": 1.0,
+      "total": 6.0
     }
   }
 }

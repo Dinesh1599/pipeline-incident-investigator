@@ -34,6 +34,7 @@ def insert_incident(incident: dict) -> str:
             INSERT INTO incidents (
                 incident_id, severity, status, source,
                 pipeline_name, dag_id, task_id, run_id,
+                dbt_model, target_table, target_column,
                 failure_class, issue_summary, root_cause,
                 confidence, fix_summary, prevention_summary,
                 evidence_json, validated
@@ -42,9 +43,13 @@ def insert_incident(incident: dict) -> str:
                 %s, %s, %s, %s,
                 %s, %s, %s,
                 %s, %s, %s,
+                %s, %s, %s,
                 %s, %s
             )
             ON CONFLICT (incident_id) DO UPDATE SET
+                dbt_model = EXCLUDED.dbt_model,
+                target_table = EXCLUDED.target_table,
+                target_column = EXCLUDED.target_column,
                 failure_class = EXCLUDED.failure_class,
                 issue_summary = EXCLUDED.issue_summary,
                 root_cause = EXCLUDED.root_cause,
@@ -62,6 +67,9 @@ def insert_incident(incident: dict) -> str:
                 incident.get("dag_id"),
                 incident.get("task_id"),
                 incident.get("run_id"),
+                incident.get("dbt_model"),
+                incident.get("target_table"),
+                incident.get("target_column"),
                 incident.get("failure_class"),
                 incident.get("summary", incident.get("issue_summary")),
                 incident.get("root_cause"),
