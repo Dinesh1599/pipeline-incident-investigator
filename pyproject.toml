@@ -1,7 +1,24 @@
 [project]
 name = "pipeline-incident-investigator"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.0.0"
+description = "AI-powered data pipeline incident investigation using LangGraph and GPT-4o"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

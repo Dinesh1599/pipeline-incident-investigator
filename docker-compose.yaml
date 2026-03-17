@@ -297,9 +297,9 @@ services:
       # -- OpenAI --
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       # -- LangSmith Observability --
-      LANGCHAIN_TRACING_V2: "true"
-      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
-      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-pipeline-investigator}
+      LANGSMITH_TRACING: "true"
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
       # -- Database connections --
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
