@@ -5,8 +5,6 @@ Model: GPT-4o
 Token budget: 3000 input, 600 output
 Task type: Targeted code review
 
-Blueprint reference: Section 10.3
-
 The prompt presents evidence FIRST, then the SQL code. This primes
 the LLM to look for the specific issue rather than doing a generic
 code review.

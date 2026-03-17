@@ -5,8 +5,6 @@ Model: GPT-4o
 Token budget: 2000 input, 600 output
 Task type: Recommendation generation
 
-Blueprint reference: Section 10.5
-
 Includes examples of good vs bad recommendations. Pushes for
 specificity by showing what specificity looks like.
 """

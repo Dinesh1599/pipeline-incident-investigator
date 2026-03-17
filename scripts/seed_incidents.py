@@ -10,7 +10,6 @@ Requires:
     - PostgreSQL (investigator_db) running and accessible
     - incidents table created (via init_db.sql)
 
-Blueprint reference: Section 13 (Phase 1: Manual Seeding)
 """
 
 import json

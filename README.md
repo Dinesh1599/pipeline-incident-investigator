@@ -130,3 +130,11 @@ graph TD
     - Contains the nodes for the LangGraph workflow
 - agent.py
     - Contains the agent for the LangGraph workflow
+
+## Testing
+
+-  Added all 12 nodes to the graph and compiled it.
+
+- test_graph_full.py
+    - Tests the full LangGraph workflow
+- All test cases are passing.

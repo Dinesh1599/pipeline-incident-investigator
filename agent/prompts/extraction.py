@@ -5,7 +5,7 @@ Model: GPT-4o-mini
 Token budget: 800 input, 300 output
 Task type: Structured extraction
 
-Blueprint reference: Section 10.1
+
 
 This node extracts, it does not reason. The prompt is kept
 short and focused with strict JSON output.

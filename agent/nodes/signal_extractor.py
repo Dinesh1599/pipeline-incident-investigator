@@ -1,105 +1,88 @@
 """
 signal_extractor.py — Node 3: Signal Extractor
 
-Sends the raw log (pre-truncated) to GPT-4o-mini with a structured
-extraction prompt. Also runs regex-based extraction as a supplement.
-Merges LLM extraction with regex extraction.
+Two paths:
+    1. Log-based: Truncates log, runs regex + LLM extraction
+    2. Question-based: Discovers pipeline tables, sends question
+       to dedicated question parser
 
-Blueprint reference: Section 9.2 (Node 3), Section 10.1
 """
 
-import json
 import logging
-
-from langchain_openai import ChatOpenAI
 
 from agent.state import InvestigationState
 from agent.prompts import extraction
+from agent.prompts import question_parser
 from agent.evidence.log_parser import truncate_log, extract_signals_regex
-from agent.utils.config import MODELS, LLM_TEMPERATURE, LLM_MAX_RETRIES
+from agent.connectors.postgres_connector import PostgresConnector
+from agent.utils.config import MODELS
 from agent.utils.context_budget import get_output_budget
+from agent.utils.llm_caller import call_llm_json
 
 logger = logging.getLogger(__name__)
 
-
-def parse_json_response(text: str) -> dict:
-    """Parse JSON from LLM response, handling markdown fences."""
-    cleaned = text.strip()
-    if cleaned.startswith("```json"):
-        cleaned = cleaned[7:]
-    if cleaned.startswith("```"):
-        cleaned = cleaned[3:]
-    if cleaned.endswith("```"):
-        cleaned = cleaned[:-3]
-    return json.loads(cleaned.strip())
+# Schemas that represent medallion layers
+MEDALLION_SCHEMAS = ["bronze", "silver", "gold", "raw", "staging", "clean", "intermediate", "mart", "analytics"]
 
 
 def signal_extractor_node(state: InvestigationState) -> dict:
-    """Signal Extractor — extracts structured signals from logs.
+    """Signal Extractor — extracts structured signals from logs or questions.
 
-    Reads: logs_raw, logs_available, error_message
+    Reads: logs_raw, logs_available, error_message, question, dbt_model,
+           lineage_context
     Writes: extracted_signals, target_objects
     """
     logs_raw = state.get("logs_raw", "")
-    logs_available = state.get("logs_available", False)
     error_message = state.get("error_message", "")
+    question = state.get("question", "")
     dbt_model = state.get("dbt_model")
 
-    # ── Regex extraction (always runs) ──────────────────────
+    # ── Path 1: Log-based extraction ────────────────────────
+    if logs_raw or error_message:
+        return _extract_from_logs(logs_raw, error_message, dbt_model, state)
+
+    # ── Path 2: Question-based extraction ───────────────────
+    if question:
+        return _extract_from_question(question, dbt_model, state)
+
+    # ── No input available ──────────────────────────────────
+    logger.info("[SIGNALS] No logs, error message, or question available")
+    return {
+        "extracted_signals": {},
+        "target_objects": {"date_column": "order_date", "timestamp_column": "order_date"},
+    }
+
+
+def _extract_from_logs(
+    logs_raw: str,
+    error_message: str,
+    dbt_model: str | None,
+    state: InvestigationState,
+) -> dict:
+    """Extract signals from log text using regex + LLM."""
     log_text = logs_raw or error_message
     regex_signals = extract_signals_regex(log_text) if log_text else {}
 
-    # ── Log truncation ──────────────────────────────────────
     truncated_log = truncate_log(logs_raw) if logs_raw else error_message
 
-    # ── LLM extraction ──────────────────────────────────────
     llm_signals = {}
-
     if truncated_log:
         logger.info("[SIGNALS] Calling GPT-4o-mini for signal extraction...")
-        try:
-            llm = ChatOpenAI(
-                model=MODELS["signal_extraction"],
-                temperature=LLM_TEMPERATURE,
-                max_tokens=get_output_budget("signal_extraction"),
-            )
-
-            user_msg = extraction.build_user_message(truncated_log, regex_signals)
-            response = llm.invoke([
-                {"role": "system", "content": extraction.SYSTEM_PROMPT},
-                {"role": "user", "content": user_msg},
-            ])
-
-            llm_signals = parse_json_response(response.content)
+        user_msg = extraction.build_user_message(truncated_log, regex_signals)
+        llm_signals = call_llm_json(
+            model=MODELS["signal_extraction"],
+            system_prompt=extraction.SYSTEM_PROMPT,
+            user_message=user_msg,
+            max_tokens=get_output_budget("signal_extraction"),
+            node_name="SIGNALS",
+        )
+        if llm_signals:
             logger.info("[SIGNALS] Extracted: %s", llm_signals.get("error_type", "unknown"))
+        else:
+            logger.warning("[SIGNALS] LLM extraction returned no results, using regex only")
 
-        except json.JSONDecodeError:
-            logger.warning("[SIGNALS] LLM returned malformed JSON, retrying...")
-            try:
-                retry_response = llm.invoke([
-                    {"role": "system", "content": extraction.SYSTEM_PROMPT},
-                    {"role": "user", "content": (
-                        "Your previous response was not valid JSON. "
-                        "Respond with ONLY valid JSON matching the schema.\n\n"
-                        + user_msg
-                    )},
-                ])
-                llm_signals = parse_json_response(retry_response.content)
-            except Exception:
-                logger.error("[SIGNALS] Retry failed, falling back to regex only")
-                llm_signals = {}
-
-        except Exception as e:
-            logger.error("[SIGNALS] LLM extraction failed: %s", e)
-            llm_signals = {}
-    else:
-        logger.info("[SIGNALS] No log text available, using regex signals only")
-
-    # ── Merge LLM and regex signals ─────────────────────────
     merged = _merge_signals(llm_signals, regex_signals)
-
-    # ── Build target objects for evidence checks ────────────
-    target_objects = _build_target_objects(merged, state)
+    target_objects = _build_target_objects_from_signals(merged, state)
 
     logger.info(
         "[SIGNALS] Final: type=%s, objects=%s",
@@ -113,57 +96,200 @@ def signal_extractor_node(state: InvestigationState) -> dict:
     }
 
 
-def _merge_signals(llm_signals: dict, regex_signals: dict) -> dict:
-    """Merge LLM extraction with regex extraction.
+def _extract_from_question(
+    question: str,
+    dbt_model: str | None,
+    state: InvestigationState,
+) -> dict:
+    """Extract investigation targets from a user question."""
+    logger.info("[SIGNALS] Parsing user question: '%s'", question[:100])
 
-    LLM signals take priority. Regex fills in gaps.
-    Objects are combined from both sources.
+    # Discover available tables from the database
+    available_tables = _discover_pipeline_tables()
+
+    lineage = state.get("lineage_context", {})
+    pipeline_context = {
+        "model": dbt_model,
+        "upstream_models": lineage.get("upstream_models", []),
+        "upstream_sources": lineage.get("upstream_sources", []),
+    }
+
+    user_msg = question_parser.build_user_message(
+        question,
+        pipeline_context=pipeline_context,
+        available_tables=available_tables,
+    )
+
+    parsed = call_llm_json(
+        model=MODELS["signal_extraction"],
+        system_prompt=question_parser.SYSTEM_PROMPT,
+        user_message=user_msg,
+        max_tokens=get_output_budget("signal_extraction"),
+        node_name="SIGNALS",
+    )
+
+    if not parsed:
+        logger.warning("[SIGNALS] Question parsing returned no results")
+        return {
+            "extracted_signals": {"question": question},
+            "target_objects": {"date_column": "order_date", "timestamp_column": "order_date"},
+        }
+
+    # Build extracted_signals from parsed question
+    signals = {
+        "error_type": None,
+        "error_message": None,
+        "sql_state_code": None,
+        "objects_referenced": {
+            "tables": [
+                f"{t['schema']}.{t['table']}"
+                for t in parsed.get("tables_to_check", [])
+            ],
+            "columns": parsed.get("columns_of_interest", []),
+            "models": [],
+        },
+        "question": question,
+        "investigation_type": parsed.get("investigation_type", "unknown"),
+        "parsed_question": parsed,
+    }
+
+    target_objects = _build_target_objects_from_question(parsed, state)
+
+    logger.info(
+        "[SIGNALS] Parsed question: type=%s, tables=%s, date=%s",
+        parsed.get("investigation_type"),
+        [f"{t['schema']}.{t['table']}" for t in parsed.get("tables_to_check", [])],
+        parsed.get("date_filter", {}).get("value"),
+    )
+
+    return {
+        "extracted_signals": signals,
+        "target_objects": target_objects,
+    }
+
+
+def _discover_pipeline_tables() -> list[dict]:
+    """Discover all tables across medallion schemas from the database.
+
+    Queries INFORMATION_SCHEMA to find all tables in schemas that
+    match medallion layer naming conventions, along with their columns.
+    Works with any medallion architecture setup.
     """
-    if not llm_signals:
-        return regex_signals or {}
+    try:
+        pg = PostgresConnector()
 
-    merged = dict(llm_signals)
+        # First, find all schemas that look like medallion layers
+        schema_result = pg.execute_query(
+            "SELECT schema_name FROM information_schema.schemata "
+            "WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast') "
+            "ORDER BY schema_name"
+        )
 
-    # Fill missing fields from regex
-    if not merged.get("error_type") and regex_signals.get("error_type"):
-        merged["error_type"] = regex_signals["error_type"]
+        if not schema_result["rows"]:
+            return []
 
-    if not merged.get("sql_state_code") and regex_signals.get("sql_state_code"):
-        merged["sql_state_code"] = regex_signals["sql_state_code"]
+        available = []
 
-    # Merge object references
-    llm_objects = merged.get("objects_referenced", {})
-    regex_objects = regex_signals.get("objects_referenced", {})
+        for row in schema_result["rows"]:
+            schema = row["schema_name"]
 
-    for key in ["tables", "columns", "models"]:
-        llm_list = llm_objects.get(key, [])
-        regex_list = regex_objects.get(key, [])
-        combined = list(set(llm_list + regex_list))
-        if "objects_referenced" not in merged:
-            merged["objects_referenced"] = {}
-        merged["objects_referenced"][key] = combined
+            # Get all tables in this schema
+            table_result = pg.execute_query(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = %s AND table_type = 'BASE TABLE' "
+                "ORDER BY table_name",
+                (schema,),
+            )
 
-    # Keep regex_matches for downstream reference
-    if regex_signals.get("regex_matches"):
-        merged["regex_matches"] = regex_signals["regex_matches"]
+            for table_row in table_result["rows"]:
+                table_name = table_row["table_name"]
 
-    return merged
+                # Get columns for this table
+                col_result = pg.execute_query(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = %s AND table_name = %s "
+                    "ORDER BY ordinal_position",
+                    (schema, table_name),
+                )
+
+                columns = [c["column_name"] for c in col_result["rows"]]
+
+                # Get date range for date columns
+                date_range = None
+                date_cols = [c for c in columns if "date" in c.lower() or "time" in c.lower()]
+                if date_cols:
+                    range_result = pg.execute_query(
+                        f"SELECT MIN({date_cols[0]}) AS min_date, MAX({date_cols[0]}) AS max_date "
+                        f"FROM {schema}.{table_name} LIMIT 1"
+                    )
+                    if range_result["rows"]:
+                        date_range = {
+                            "column": date_cols[0],
+                            "min": str(range_result["rows"][0].get("min_date", "")),
+                            "max": str(range_result["rows"][0].get("max_date", "")),
+                        }
+
+                available.append({
+                    "schema": schema,
+                    "table": table_name,
+                    "columns": columns,
+                    "date_range": date_range,
+                })
+
+                available.append({
+                    "schema": schema,
+                    "table": table_name,
+                    "columns": columns,
+                })
+
+        logger.info(
+            "[SIGNALS] Discovered %d tables across schemas: %s",
+            len(available),
+            list(set(t["schema"] for t in available)),
+        )
+
+        return available
+
+    except Exception as e:
+        logger.error("[SIGNALS] Failed to discover pipeline tables: %s", e)
+        return []
 
 
-def _build_target_objects(signals: dict, state: InvestigationState) -> dict:
-    """Build the target objects dict for evidence queries.
+def _build_target_objects_from_question(parsed: dict, state: InvestigationState) -> dict:
+    """Build target objects from parsed question output."""
+    target = {}
 
-    Determines which schema, table, and column to investigate
-    based on extracted signals and lineage context.
-    """
+    tables = parsed.get("tables_to_check", [])
+    if tables:
+        target["schema"] = tables[0].get("schema", "bronze")
+        target["table"] = tables[0].get("table", "")
+
+    columns = parsed.get("columns_of_interest", [])
+    if columns:
+        target["column"] = columns[0]
+
+    date_filter = parsed.get("date_filter", {})
+    if date_filter.get("value"):
+        target["date_value"] = date_filter["value"]
+    if date_filter.get("column"):
+        target["date_column"] = date_filter["column"]
+    else:
+        target["date_column"] = "order_date"
+
+    target.setdefault("timestamp_column", target.get("date_column", "order_date"))
+    target["check_priorities"] = parsed.get("check_priorities", [])
+
+    return target
+
+
+def _build_target_objects_from_signals(signals: dict, state: InvestigationState) -> dict:
+    """Build target objects from log-based signal extraction."""
     objects = signals.get("objects_referenced", {})
     lineage = state.get("lineage_context", {})
 
     target = {}
 
-    # Determine target table and schema from signals or lineage
-    if objects.get("tables"):
-        # Parse schema.table if present
+    if objects and objects.get("tables"):
         table_ref = objects["tables"][0]
         if "." in table_ref:
             target["schema"], target["table"] = table_ref.split(".", 1)
@@ -175,12 +301,40 @@ def _build_target_objects(signals: dict, state: InvestigationState) -> dict:
         target["schema"] = source.get("schema", "bronze")
         target["table"] = source.get("table_name", "")
 
-    # Determine target column from signals
-    if objects.get("columns"):
+    if objects and objects.get("columns"):
         target["column"] = objects["columns"][0]
 
-    # Add date-related fields for partition checks
     target.setdefault("date_column", "order_date")
     target.setdefault("timestamp_column", "order_date")
 
     return target
+
+
+def _merge_signals(llm_signals: dict, regex_signals: dict) -> dict:
+    """Merge LLM extraction with regex extraction."""
+    if not llm_signals:
+        return regex_signals or {}
+
+    merged = dict(llm_signals)
+
+    if not merged.get("error_type") and regex_signals.get("error_type"):
+        merged["error_type"] = regex_signals["error_type"]
+
+    if not merged.get("sql_state_code") and regex_signals.get("sql_state_code"):
+        merged["sql_state_code"] = regex_signals["sql_state_code"]
+
+    llm_objects = merged.get("objects_referenced", {})
+    regex_objects = regex_signals.get("objects_referenced", {})
+
+    for key in ["tables", "columns", "models"]:
+        llm_list = llm_objects.get(key, [])
+        regex_list = regex_objects.get(key, [])
+        combined = list(set(llm_list + regex_list))
+        if "objects_referenced" not in merged:
+            merged["objects_referenced"] = {}
+        merged["objects_referenced"][key] = combined
+
+    if regex_signals.get("regex_matches"):
+        merged["regex_matches"] = regex_signals["regex_matches"]
+
+    return merged

@@ -4,8 +4,6 @@ state.py — Investigation state model.
 The graph state is a typed dictionary that accumulates evidence
 throughout the investigation. All nodes read from and write to
 this shared state.
-
-Blueprint reference: Section 9.1 (State Model)
 """
 
 from typing import Optional
