@@ -4,7 +4,7 @@ run_eval.py — Evaluation framework runner.
 Loads scenario definitions from eval/scenarios/, runs each through
 the agent graph, and scores the output against expected results.
 
-Blueprint reference: Section 16 (Agent Evaluation Framework)
+
 
 Usage:
     python eval/run_eval.py                          # Run all scenarios
