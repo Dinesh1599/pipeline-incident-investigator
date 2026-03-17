@@ -61,6 +61,9 @@ def response_formatter_node(state: InvestigationState) -> dict:
             "dag_id": state.get("dag_id", ""),
             "task_id": state.get("task_id", ""),
             "run_id": state.get("run_id", ""),
+            "dbt_model": state.get("dbt_model", ""),
+            "target_table": state.get("target_objects", {}).get("table", ""),
+            "target_column": state.get("target_objects", {}).get("column", ""),
             "failure_class": report["failure_class"],
             "issue_summary": report["what_failed"],
             "root_cause": report["root_cause"],
@@ -130,7 +133,6 @@ def _build_what_failed(state: InvestigationState) -> str:
 
 
 def _build_how_failed(state: InvestigationState) -> str:
-    """Build a description of the failure mechanism."""
     code_findings = state.get("code_findings", {})
     primary_finding = code_findings.get("primary_finding", "")
 
@@ -138,4 +140,12 @@ def _build_how_failed(state: InvestigationState) -> str:
         return primary_finding
 
     signals = state.get("extracted_signals", {})
-    return signals.get("error_message", "Failure mechanism not determined")
+    error_msg = signals.get("error_message")
+    if error_msg:
+        return error_msg
+
+    question = state.get("question")
+    if question:
+        return "Silent correctness issue — pipeline succeeded but data may be incorrect."
+
+    return "Failure mechanism not determined"
