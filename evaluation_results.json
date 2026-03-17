@@ -1,0 +1,153 @@
+{
+  "results": {
+    "null_join_key": {
+      "incident_id": "INC-20260316223218-6918dd",
+      "severity": "error",
+      "failure_class": "data_quality",
+      "what_failed": "fct_sales model failed with not_null_violation \u2014 null value in column \"customer_id\" of relation \"fct_sales__dbt_tmp\" violates not-null constraint",
+      "where_failed": {
+        "dag_id": "sales_pipeline",
+        "task_id": "run_dbt_fct_sales",
+        "model": "fct_sales",
+        "table": "silver_sales",
+        "column": "customer_id"
+      },
+      "how_it_failed": "LEFT JOIN without null filter on customer_id allows NULL rows to propagate to the output, causing NOT NULL constraint violation.",
+      "root_cause": "The LEFT JOIN in the fct_sales model does not filter out NULL customer_id values from silver_sales, allowing them to propagate and violate the NOT NULL constraint in fct_sales__dbt_tmp.",
+      "evidence_chain": [
+        "Error message indicates not_null_violation on customer_id in fct_sales__dbt_tmp.",
+        "Code inspection reveals a LEFT JOIN without a filter for NULL customer_id values.",
+        "Database evidence shows no NULLs in upstream tables but allows NULLs to propagate due to the LEFT JOIN.",
+        "Similar past incidents confirm the same root cause and resolution."
+      ],
+      "confidence": 0.95,
+      "alternative_causes_considered": [
+        {
+          "cause": "Data entry error in upstream tables causing NULLs.",
+          "ruled_out_by": "Database evidence shows null_count: 0 in upstream tables."
+        },
+        {
+          "cause": "Incorrect data type or constraint definition in fct_sales__dbt_tmp.",
+          "ruled_out_by": "Error specifically points to NULL propagation due to JOIN logic, not schema definition."
+        }
+      ],
+      "fix": {
+        "immediate": "Add WHERE ss.customer_id IS NOT NULL filter to fct_sales.sql before the JOIN on line 18",
+        "preventive": "Add a not_null dbt test on silver_sales.customer_id in models/silver/schema.yml",
+        "monitoring": "Add an alert that triggers when null count in silver_sales.customer_id exceeds 1% of total rows"
+      },
+      "prevention": [
+        "Implement a dbt test to ensure that all customer_id values in fct_sales are not null after the JOIN operation."
+      ]
+    },
+    "schema_drift": {
+      "incident_id": "INC-20260316223232-dbe10f",
+      "severity": "error",
+      "failure_class": "schema_drift",
+      "what_failed": "silver_customers model failed with type_cast_failure \u2014 invalid input syntax for type integer: \"CUST-001\"",
+      "where_failed": {
+        "dag_id": "sales_pipeline",
+        "task_id": "run_dbt_silver_customers",
+        "model": "silver_customers",
+        "table": "customers",
+        "column": ""
+      },
+      "how_it_failed": "CAST(customer_id AS INTEGER) on a text field containing non-numeric values causes type_cast_failure.",
+      "root_cause": "The silver_customers model attempts to cast the customer_id field as INTEGER, but the field contains non-numeric values like 'CUST-001', leading to a type_cast_failure.",
+      "evidence_chain": [
+        "Error message indicates type_cast_failure due to invalid input syntax for type integer: 'CUST-001'.",
+        "Code inspection reveals CAST(customer_id AS INTEGER) on a text field containing non-numeric values.",
+        "Database evidence shows customer_id column is of type text, which can contain non-numeric values.",
+        "Similar past incident INC-20260316222647-ae9620 confirms the same root cause and fix."
+      ],
+      "confidence": 0.95,
+      "alternative_causes_considered": [
+        {
+          "cause": "Schema drift due to upstream changes in customer_id format.",
+          "ruled_out_by": "Database evidence shows customer_id is text, and similar past incidents confirm the casting issue."
+        },
+        {
+          "cause": "Incorrect data ingestion in the bronze layer.",
+          "ruled_out_by": "Lineage shows no upstream models affecting the bronze layer, and the bronze layer successfully ingests text data."
+        }
+      ],
+      "fix": {
+        "immediate": "Modify silver_customers.sql to remove the CAST(customer_id AS INTEGER) and handle customer_id as a text field. Update line 5 to SELECT DISTINCT ON (customer_id) and line 6 to customer_id AS customer_id.",
+        "preventive": "Add a dbt test in models/silver/schema.yml to ensure customer_id in bronze.customers does not contain non-numeric values if numeric IDs are expected.",
+        "monitoring": "Set up an alert to trigger when any non-numeric value is detected in the customer_id column of bronze.customers, using a query that checks for non-numeric patterns."
+      },
+      "prevention": [
+        "Implement a data validation step in the ETL process to clean or flag non-numeric customer_id values before they reach the silver layer."
+      ]
+    },
+    "missing_partition": {
+      "incident_id": "INC-20260316223250-dd37e9",
+      "severity": "warning",
+      "failure_class": "silent_correctness",
+      "what_failed": "Investigation triggered by question: Why are sales missing for March 4th?",
+      "where_failed": {
+        "dag_id": "sales_pipeline",
+        "task_id": "run_dbt_fct_sales",
+        "model": "fct_sales",
+        "table": "",
+        "column": ""
+      },
+      "how_it_failed": "LEFT JOIN without null filter on customer_id allows NULL rows to propagate to the output, causing potential silent correctness issues.",
+      "root_cause": "The LEFT JOIN in the fct_sales model allows NULL customer_id rows from silver_sales to propagate to the output, causing silent correctness issues.",
+      "evidence_chain": [
+        "Code inspection revealed a LEFT JOIN clause that preserves rows with NULL customer_id in silver_sales.",
+        "Code inspection noted the absence of a WHERE filter to exclude NULL customer_id before the join.",
+        "Database evidence showed a small row count in silver_customers, suggesting potential NULL customer_id in silver_sales.",
+        "Similar past incident INC-20260316222703-5ad5dd identified the same issue with the LEFT JOIN allowing NULL customer_id rows to propagate."
+      ],
+      "confidence": 0.7,
+      "alternative_causes_considered": [
+        {
+          "cause": "GROUP BY clause not accounting for missing partitions leading to zero output for certain dates.",
+          "ruled_out_by": "The primary finding and similar past incident both focused on the LEFT JOIN issue, not the GROUP BY clause."
+        },
+        {
+          "cause": "Wrong aggregation grain in fct_sales causing doubled revenue metrics.",
+          "ruled_out_by": "The current issue is related to silent correctness due to NULL customer_id, not aggregation grain errors."
+        }
+      ],
+      "fix": {
+        "immediate": "Add WHERE ss.customer_id IS NOT NULL filter to fct_sales.sql before the JOIN on line 18",
+        "preventive": "Add a not_null dbt test on silver_sales.customer_id in models/silver/schema.yml",
+        "monitoring": "Add an alert that triggers when null count in silver_sales.customer_id exceeds 1% of total rows"
+      },
+      "prevention": [
+        "Implement a dbt test to ensure that all customer_id values in silver_sales are present in silver_customers before running the fct_sales model."
+      ]
+    }
+  },
+  "scores": {
+    "null_join_key": {
+      "classification": 1.0,
+      "table_identified": 1.0,
+      "column_identified": 1.0,
+      "root_cause": 1.0,
+      "fix_actionable": 1.0,
+      "prevention": 0.5,
+      "total": 5.5
+    },
+    "schema_drift": {
+      "classification": 1.0,
+      "table_identified": 1.0,
+      "column_identified": 1.0,
+      "root_cause": 1.0,
+      "fix_actionable": 0.5,
+      "prevention": 0.5,
+      "total": 5.0
+    },
+    "missing_partition": {
+      "classification": 1.0,
+      "table_identified": 0.0,
+      "column_identified": 0.0,
+      "root_cause": 0.0,
+      "fix_actionable": 0.0,
+      "prevention": 0.0,
+      "total": 1.0
+    }
+  }
+}
