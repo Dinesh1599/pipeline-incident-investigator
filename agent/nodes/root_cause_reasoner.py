@@ -82,7 +82,7 @@ def root_cause_reasoner_node(state: InvestigationState) -> dict:
 
     if result:
         root_cause = result.get("root_cause", "Unable to determine root cause")
-        confidence = min(result.get("confidence", 0.0), confidence_cap)
+        confidence = min(float(result.get("confidence", 0.0)), confidence_cap)
         evidence_chain = result.get("evidence_chain", [])
         alternatives = result.get("alternative_causes_considered", [])
 
