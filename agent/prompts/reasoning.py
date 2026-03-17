@@ -54,7 +54,33 @@ Respond with ONLY valid JSON matching the schema. No explanation, no markdown.
 - If logs were unavailable, note this and cap confidence at 0.7
 - If database evidence was unavailable, note this and cap confidence at 0.5
 - Do NOT guess or fill gaps with assumptions. If you don't know, say so.
-- When the evidence points to a data issue but the CAUSE of the data issue isn't clear, say so rather than guessing"""
+- When the evidence points to a data issue but the CAUSE of the data issue isn't clear, say so rather than guessing
+
+## Specificity Requirements
+
+Your root_cause and evidence_chain MUST reference specific objects:
+- Always name the exact schema and table (e.g., "bronze.sales", NOT "source data" or "upstream table")
+- Always name the exact column (e.g., "customer_id", "order_date", NOT "the key column" or "the date field")
+- Always include the specific values or counts from evidence (e.g., "0 rows for order_date = 2026-03-04", NOT "no data for that date")
+- When tracing across layers, state each layer explicitly (e.g., "bronze.sales has 0 rows → silver.silver_sales has 0 rows → gold.fct_sales has 0 rows")
+
+## Multi-Layer Investigation
+
+When evidence includes checks across multiple pipeline layers (bronze, silver, gold), determine WHERE the issue originates:
+- If the issue exists at bronze level: the root cause is in source data or ingestion
+- If bronze is clean but silver has the issue: the root cause is in the transformation (dbt model)
+- If bronze and silver are clean but gold has the issue: the root cause is in the aggregation or join logic
+- Always trace from the LOWEST layer upward — the first layer showing the issue is where the root cause lives
+- Do NOT blame transformation code (GROUP BY, JOIN, WHERE) for data that simply doesn't exist in the source
+
+## Silent Correctness Investigations
+
+When the failure class is silent_correctness and the investigation was triggered by a user question:
+- The pipeline SUCCEEDED — there is no error in the code. The code ran correctly.
+- Focus on what DATA is missing or wrong, not what CODE might be wrong
+- partition_check showing 0 rows at the bronze layer means the source data was never delivered
+- partition_check showing 0 rows at silver but not bronze means the transformation filtered it out
+- Do NOT blame SQL constructs (GROUP BY, JOIN) for missing source data — they cannot create data that doesn't exist"""
 
 
 def build_user_message(
@@ -71,16 +97,6 @@ def build_user_message(
 
     All evidence is presented in clearly labeled sections so the LLM
     can reference specific evidence in its reasoning.
-
-    Args:
-        failure_signals: Output from Signal Extractor.
-        classification: Output from Classifier.
-        database_evidence: Results from Database Evidence Analyzer.
-        code_findings: Output from Code Inspector.
-        lineage_context: Output from Lineage Tracer.
-        similar_incidents: Output from Incident Retriever.
-        logs_available: Whether logs were successfully collected.
-        db_evidence_available: Whether database evidence was collected.
     """
     parts = []
 
@@ -96,7 +112,7 @@ def build_user_message(
     parts.append("== FAILURE SIGNALS ==")
     if failure_signals:
         for key, value in failure_signals.items():
-            if key != "regex_matches" and value:
+            if key not in ("regex_matches", "parsed_question") and value:
                 parts.append(f"  {key}: {value}")
     else:
         parts.append("  No signals extracted")
@@ -109,23 +125,29 @@ def build_user_message(
         if classification.get('secondary_class'):
             parts.append(f"  Secondary class: {classification['secondary_class']}")
         parts.append(f"  Confidence: {classification.get('confidence', 'unknown')}")
-        parts.append(f"  Reasoning: {classification.get('reasoning', '')}")
     parts.append("")
 
     # Section 3: Database evidence
     parts.append("== DATABASE EVIDENCE ==")
     if database_evidence:
+        # Group by layer/context for clarity
+        by_context = {}
         for evidence in database_evidence:
-            template = evidence.get("template", "unknown")
-            context = evidence.get("context", "")
-            prefix = f"  [{context}] " if context else "  "
+            ctx = evidence.get("context", "direct")
+            if ctx not in by_context:
+                by_context[ctx] = []
+            by_context[ctx].append(evidence)
 
-            if evidence.get("error"):
-                parts.append(f"{prefix}{template}: QUERY FAILED — {evidence['error']}")
-            elif evidence.get("rows"):
-                parts.append(f"{prefix}{template}: {evidence['rows']}")
-            else:
-                parts.append(f"{prefix}{template}: no anomalies found (this is evidence too)")
+        for ctx, items in by_context.items():
+            parts.append(f"  --- {ctx} ---")
+            for evidence in items:
+                template = evidence.get("template", "unknown")
+                if evidence.get("error"):
+                    parts.append(f"    {template}: QUERY FAILED — {evidence['error'][:100]}")
+                elif evidence.get("rows"):
+                    parts.append(f"    {template}: {evidence['rows']}")
+                else:
+                    parts.append(f"    {template}: no anomalies found (this is evidence too)")
     else:
         parts.append("  No database evidence collected")
     parts.append("")
@@ -146,9 +168,12 @@ def build_user_message(
     parts.append("== LINEAGE ==")
     if lineage_context:
         parts.append(f"  Model: {lineage_context.get('model', 'unknown')}")
-        parts.append(f"  Upstream models: {lineage_context.get('upstream_models', [])}")
-        parts.append(f"  Upstream sources: {lineage_context.get('upstream_sources', [])}")
-        parts.append(f"  Downstream affected: {lineage_context.get('downstream_models', [])}")
+        if lineage_context.get("dependency_chain"):
+            parts.append(f"  Chain: {lineage_context['dependency_chain']}")
+        else:
+            parts.append(f"  Upstream models: {lineage_context.get('upstream_models', [])}")
+            parts.append(f"  Upstream sources: {lineage_context.get('upstream_sources', [])}")
+            parts.append(f"  Downstream affected: {lineage_context.get('downstream_models', [])}")
     else:
         parts.append("  No lineage context available")
     parts.append("")

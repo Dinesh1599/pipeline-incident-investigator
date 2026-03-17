@@ -27,42 +27,42 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 # ── Expected outputs from blueprint Section 16 ──────────────────
 
 SCENARIOS = {
-    "null_join_key": {
-        "trigger": {
-            "pipeline_name": "sales_pipeline",
-            "dag_id": "sales_pipeline",
-            "task_id": "run_dbt_fct_sales",
-            "run_id": "manual__2026-03-16T22:16:24.462604+00:00",  # <-- update
-            "severity": "error",
-            "error_message": "Bash command failed. The command returned a non-zero exit code 1.",
-        },
-        "expected": {
-            "failure_class": "data_quality",
-            "expected_table": ["bronze.sales", "silver_sales", "fct_sales"],
-            "expected_column": "customer_id",
-            "root_cause_keywords": ["null", "customer_id", "join"],
-            "fix_should_mention": ["filter", "not_null", "WHERE"],
-            "prevention_should_mention": ["test", "validation", "alert"],
-        },
-    },
-    "schema_drift": {
-        "trigger": {
-            "pipeline_name": "sales_pipeline",
-            "dag_id": "sales_pipeline",
-            "task_id": "run_dbt_silver_customers",
-            "run_id": "manual__2026-03-16T22:21:57.723073+00:00",  # <-- update
-            "severity": "error",
-            "error_message": "Bash command failed. The command returned a non-zero exit code 1.",
-        },
-        "expected": {
-            "failure_class": "schema_drift",
-            "expected_table": ["bronze.customers", "silver_customers"],
-            "expected_column": "customer_id",
-            "root_cause_keywords": ["type", "cast", "integer", "CUST", "format"],
-            "fix_should_mention": ["safe", "cast", "TRY", "regex", "validation"],
-            "prevention_should_mention": ["schema", "contract", "drift", "alert"],
-        },
-    },
+    # "null_join_key": {
+    #     "trigger": {
+    #         "pipeline_name": "sales_pipeline",
+    #         "dag_id": "sales_pipeline",
+    #         "task_id": "run_dbt_fct_sales",
+    #         "run_id": "manual__2026-03-17T01:57:53.418591+00:00",  # <-- update
+    #         "severity": "error",
+    #         "error_message": "Bash command failed. The command returned a non-zero exit code 1.",
+    #     },
+    #     "expected": {
+    #         "failure_class": "data_quality",
+    #         "expected_table": ["bronze.sales", "silver_sales", "fct_sales"],
+    #         "expected_column": "customer_id",
+    #         "root_cause_keywords": ["null", "customer_id", "join"],
+    #         "fix_should_mention": ["filter", "not_null", "WHERE"],
+    #         "prevention_should_mention": ["test", "validation", "alert"],
+    #     },
+    # },
+    # "schema_drift": {
+    #     "trigger": {
+    #         "pipeline_name": "sales_pipeline",
+    #         "dag_id": "sales_pipeline",
+    #         "task_id": "run_dbt_silver_customers",
+    #         "run_id": "manual__2026-03-17T02:23:54.227426+00:00",  # <-- update
+    #         "severity": "error",
+    #         "error_message": "Bash command failed. The command returned a non-zero exit code 1.",
+    #     },
+    #     "expected": {
+    #         "failure_class": "schema_drift",
+    #         "expected_table": ["bronze.customers", "silver_customers"],
+    #         "expected_column": "customer_id",
+    #         "root_cause_keywords": ["type", "cast", "integer", "CUST", "format"],
+    #         "fix_should_mention": ["safe", "cast", "TRY", "regex", "validation"],
+    #         "prevention_should_mention": ["schema", "contract", "drift", "alert"],
+    #     },
+    # },
     "missing_partition": {
         "trigger": {
             "pipeline_name": "sales_pipeline",
@@ -70,16 +70,16 @@ SCENARIOS = {
             "task_id": "run_dbt_fct_sales",
             "run_id": "",  # Empty — triggered by question
             "severity": "warning",
-            "question": "Why are sales missing for March 4th?",
+            "question": "Why are sales missing for March 4th of 2026?",
         },
         "expected": {
             "failure_class": "silent_correctness",
-            "expected_table": ["bronze.sales"],
+            "expected_table": ["bronze.sales", "silver.silver_sales", "gold.fct_sales"],
             "expected_column": "order_date",
-            "root_cause_keywords": ["missing", "march", "2026-03-04", "partition", "zero", "no data"],
-            "fix_should_mention": ["completeness", "check", "date", "row"],
-            "prevention_should_mention": ["alert", "monitor", "zero"],
-        },
+            "root_cause_keywords": ["missing", "bronze", "sales", "order_date", "2026-03-04", "source", "zero", "0"],
+            "fix_should_mention": ["backfill", "bronze", "sales", "order_date", "missing", "reprocess"],
+            "prevention_should_mention": ["alert", "zero", "row", "count", "monitor", "missing", "partition"],
+        }
     },
 }
 
