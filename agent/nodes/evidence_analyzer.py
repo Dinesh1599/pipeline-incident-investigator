@@ -10,8 +10,6 @@ layers (bronze → silver → gold) to determine where the issue
 originates.
 
 Never generates SQL dynamically from LLM output for safety.
-
-Blueprint reference: Section 9.2 (Node 6), Section 11
 """
 
 import logging

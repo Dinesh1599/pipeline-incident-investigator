@@ -1,54 +1,56 @@
 {
   "results": {
-    "missing_partition": {
-      "incident_id": "INC-20260317034918-562e2f",
-      "severity": "warning",
-      "failure_class": "silent_correctness",
-      "what_failed": "Investigation triggered by question: Why are sales missing for March 4th of 2026?",
+    "null_join_key": {
+      "incident_id": "INC-20260317062549-c6efc8",
+      "severity": "error",
+      "failure_class": "data_quality",
+      "what_failed": "fct_sales model failed with not_null_violation \u2014 null value in column \"customer_id\" of relation \"fct_sales__dbt_tmp\" violates not-null constraint",
       "where_failed": {
         "dag_id": "sales_pipeline",
         "task_id": "run_dbt_fct_sales",
         "model": "fct_sales",
-        "table": "sales",
-        "column": "order_date"
+        "table": "silver_sales",
+        "column": "customer_id"
       },
-      "how_it_failed": "GROUP BY does not account for missing partitions, leading to zero output for certain dates, causing silent correctness issues.",
-      "root_cause": "The root cause of missing sales data for March 4th, 2026, is the absence of source data in the bronze.sales table for that date, leading to zero rows in subsequent layers.",
+      "how_it_failed": "LEFT JOIN without null filter on customer_id allows NULL rows to propagate to the output, causing NOT NULL constraint violation.",
+      "root_cause": "The fct_sales model's LEFT JOIN on silver_sales and silver_customers allows NULL customer_id values from silver_sales to propagate to fct_sales__dbt_tmp, violating the NOT NULL constraint.",
       "evidence_chain": [
-        "bronze.sales partition_check shows 0 rows for March 4th, 2026, indicating no source data was delivered for that date.",
-        "silver.silver_sales partition_check also shows 0 rows for March 4th, 2026, confirming the issue propagates from the bronze layer.",
-        "gold.fct_sales partition_check shows 0 rows for March 4th, 2026, further confirming the issue originates from the bronze layer."
+        "null_check on fct_sales__dbt_tmp shows 15 null customer_id values.",
+        "silver.silver_sales has 15 null customer_id values.",
+        "LEFT JOIN clause in fct_sales model does not filter out NULL customer_id values.",
+        "No WHERE clause filters out NULL customer_id before the join in fct_sales model.",
+        "Similar past incident INC-20260317054258 had the same root cause and was resolved by adding a WHERE filter."
       ],
-      "confidence": 0.7,
+      "confidence": 0.92,
       "alternative_causes_considered": [
         {
-          "cause": "Transformation logic in silver layer filtering out data",
-          "ruled_out_by": "silver.silver_sales partition_check shows 0 rows, indicating no data was available to be filtered."
+          "cause": "Source CSV contained rows with missing customer_id.",
+          "ruled_out_by": "silver.silver_sales already has 15 null customer_id values, indicating the issue is not at the bronze layer."
         },
         {
-          "cause": "Aggregation logic in gold layer causing data loss",
-          "ruled_out_by": "gold.fct_sales partition_check shows 0 rows, indicating the issue is not due to aggregation but due to missing data from upstream layers."
+          "cause": "Duplicate order_id values causing issues.",
+          "ruled_out_by": "The error is related to null customer_id values, not duplicates."
         }
       ],
       "fix": {
-        "immediate": "Backfill the missing data for March 4th, 2026, into the bronze.sales table to ensure downstream tables receive the correct data.",
-        "preventive": "Add a not_null dbt test on bronze.sales.order_date in models/bronze/schema.yml to ensure no missing dates in the source data.",
-        "monitoring": "Add an alert that triggers when the row count for any date in bronze.sales is zero, indicating missing data for that date."
+        "immediate": "Add WHERE ss.customer_id IS NOT NULL filter to fct_sales.sql before the JOIN on line 18",
+        "preventive": "Add a not_null dbt test on silver.sales.customer_id in models/silver/schema.yml",
+        "monitoring": "Add an alert that triggers when null count in silver.sales.customer_id exceeds 1% of total rows"
       },
       "prevention": [
-        "Implement a daily data completeness check for bronze.sales to verify that all expected dates have data before proceeding to the next layer."
+        "Implement a data quality check to ensure no NULL values in critical join keys across all silver models."
       ]
     }
   },
   "scores": {
-    "missing_partition": {
+    "null_join_key": {
       "classification": 1.0,
       "table_identified": 1.0,
-      "column_identified": 0.0,
+      "column_identified": 1.0,
       "root_cause": 1.0,
       "fix_actionable": 1.0,
       "prevention": 0.5,
-      "total": 4.5
+      "total": 5.5
     }
   }
 }

@@ -1,8 +1,6 @@
 """
 config.py — Centralized configuration for the investigator agent.
 
-Blueprint reference: Section 15 (Model Routing Strategy)
-
 Model routing:
     GPT-4o-mini for mechanical tasks (extraction, classification)
     GPT-4o for reasoning tasks (code inspection, root cause, fix generation)

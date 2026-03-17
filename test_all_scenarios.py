@@ -2,7 +2,7 @@
 Test all three failure scenarios end-to-end.
 
 Runs the complete graph for each scenario and scores the output
-against the evaluation rubric from blueprint Section 16.
+against the evaluation rubric.
 
 Requires:
     - .env.local configured
@@ -24,33 +24,33 @@ from agent.graph import compile_graph
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
-# ── Expected outputs from blueprint Section 16 ──────────────────
+# ────────────────── Expected outputs ──────────────────
 
 SCENARIOS = {
-    # "null_join_key": {
-    #     "trigger": {
-    #         "pipeline_name": "sales_pipeline",
-    #         "dag_id": "sales_pipeline",
-    #         "task_id": "run_dbt_fct_sales",
-    #         "run_id": "manual__2026-03-17T01:57:53.418591+00:00",  # <-- update
-    #         "severity": "error",
-    #         "error_message": "Bash command failed. The command returned a non-zero exit code 1.",
-    #     },
-    #     "expected": {
-    #         "failure_class": "data_quality",
-    #         "expected_table": ["bronze.sales", "silver_sales", "fct_sales"],
-    #         "expected_column": "customer_id",
-    #         "root_cause_keywords": ["null", "customer_id", "join"],
-    #         "fix_should_mention": ["filter", "not_null", "WHERE"],
-    #         "prevention_should_mention": ["test", "validation", "alert"],
-    #     },
-    # },
+    "null_join_key": {
+        "trigger": {
+            "pipeline_name": "sales_pipeline",
+            "dag_id": "sales_pipeline",
+            "task_id": "run_dbt_fct_sales",
+            "run_id": "manual__2026-03-17T06:24:59.971969+00:00",  # <-- update
+            "severity": "error",
+            "error_message": "Bash command failed. The command returned a non-zero exit code 1.",
+        },
+        "expected": {
+            "failure_class": "data_quality",
+            "expected_table": ["bronze.sales", "silver_sales", "fct_sales"],
+            "expected_column": "customer_id",
+            "root_cause_keywords": ["null", "customer_id", "join"],
+            "fix_should_mention": ["filter", "not_null", "WHERE"],
+            "prevention_should_mention": ["test", "validation", "alert"],
+        },
+    },
     # "schema_drift": {
     #     "trigger": {
     #         "pipeline_name": "sales_pipeline",
     #         "dag_id": "sales_pipeline",
     #         "task_id": "run_dbt_silver_customers",
-    #         "run_id": "manual__2026-03-17T02:23:54.227426+00:00",  # <-- update
+    #         "run_id": "manual__2026-03-17T05:47:08.817148+00:00",  # <-- update
     #         "severity": "error",
     #         "error_message": "Bash command failed. The command returned a non-zero exit code 1.",
     #     },
@@ -63,31 +63,31 @@ SCENARIOS = {
     #         "prevention_should_mention": ["schema", "contract", "drift", "alert"],
     #     },
     # },
-    "missing_partition": {
-        "trigger": {
-            "pipeline_name": "sales_pipeline",
-            "dag_id": "sales_pipeline",
-            "task_id": "run_dbt_fct_sales",
-            "run_id": "",  # Empty — triggered by question
-            "severity": "warning",
-            "question": "Why are sales missing for March 4th of 2026?",
-        },
-        "expected": {
-            "failure_class": "silent_correctness",
-            "expected_table": ["bronze.sales", "silver.silver_sales", "gold.fct_sales"],
-            "expected_column": "order_date",
-            "root_cause_keywords": ["missing", "bronze", "sales", "order_date", "2026-03-04", "source", "zero", "0"],
-            "fix_should_mention": ["backfill", "bronze", "sales", "order_date", "missing", "reprocess"],
-            "prevention_should_mention": ["alert", "zero", "row", "count", "monitor", "missing", "partition"],
-        }
-    },
+    # "missing_partition": {
+    #     "trigger": {
+    #         "pipeline_name": "sales_pipeline",
+    #         "dag_id": "sales_pipeline",
+    #         "task_id": "run_dbt_fct_sales",
+    #         "run_id": "",  # Empty — triggered by question
+    #         "severity": "warning",
+    #         "question": "Why are sales missing for March 4th of 2026?",
+    #     },
+    #     "expected": {
+    #         "failure_class": "silent_correctness",
+    #         "expected_table": ["bronze.sales", "silver.silver_sales", "gold.fct_sales"],
+    #         "expected_column": "order_date",
+    #         "root_cause_keywords": ["missing", "bronze", "sales", "order_date", "2026-03-04", "source", "zero", "0"],
+    #         "fix_should_mention": ["backfill", "bronze", "sales", "order_date", "missing", "reprocess"],
+    #         "prevention_should_mention": ["alert", "zero", "row", "count", "monitor", "missing", "partition"],
+    #     }
+    # },
 }
 
 
 def score_scenario(name: str, report: dict, expected: dict) -> dict:
     """Score a scenario against the evaluation rubric.
 
-    Blueprint Section 16 scoring:
+    Scoring:
         Classification correct      — 1.0
         Table/model identified       — 1.0
         Column identified            — 1.0

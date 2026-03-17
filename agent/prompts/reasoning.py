@@ -5,8 +5,6 @@ Model: GPT-4o
 Token budget: 4000 input, 1000 output
 Task type: Multi-evidence synthesis and reasoning
 
-Blueprint reference: Section 10.4
-
 This is the most important LLM call. The prompt instructs explicit
 step-by-step reasoning: consider each piece of evidence, identify
 what it confirms and rules out, enumerate possible causes, evaluate

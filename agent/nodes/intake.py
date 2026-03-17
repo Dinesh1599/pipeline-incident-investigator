@@ -7,7 +7,6 @@ incident_id. Resolves the task-to-model mapping.
 
 This is pure Python logic, no LLM call.
 
-Blueprint reference: Section 9.2 (Node 1), Section 8 (Stage 1-2)
 """
 
 import logging
@@ -18,7 +17,7 @@ from agent.state import InvestigationState
 
 logger = logging.getLogger(__name__)
 
-# Task-to-model mapping (blueprint Section 8, Stage 2)
+# Task-to-model mapping
 # Convention: Airflow task 'run_dbt_<model>' maps to dbt model '<model>'
 # Fallback mapping for cases where naming convention doesn't apply
 TASK_MODEL_MAP = {

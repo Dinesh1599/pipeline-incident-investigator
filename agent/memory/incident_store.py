@@ -3,8 +3,6 @@ incident_store.py — CRUD operations for the incidents table in investigator_db
 
 Handles inserting new incidents (both seed and auto-generated),
 retrieving incident records, and updating validation status.
-
-Blueprint reference: Section 7.1 (Incident Table), Section 13 (Auto-Storage)
 """
 
 import json

@@ -4,8 +4,6 @@ router.py — Node 5: Conditional Router
 A pure code node (no LLM). Reads the failure_class and
 investigation_priorities, returns the next node(s) to execute.
 
-Blueprint reference: Section 9.2 (Node 5)
-
 Routes:
     data_quality       → evidence_analyzer
     schema_drift       → evidence_analyzer
