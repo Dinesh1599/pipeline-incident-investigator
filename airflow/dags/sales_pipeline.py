@@ -4,7 +4,7 @@ sales_pipeline.py — Three-layer medallion architecture pipeline.
 Loads raw CSV data into bronze tables, transforms through silver and gold
 layers using dbt, and runs data quality tests.
 
-DAG structure (from blueprint Section 4):
+DAG structure:
     ingest_raw_sales ──────────► run_dbt_silver_sales ──┐
                                                         ├─► run_dbt_fct_sales ─► run_dbt_tests
     ingest_raw_customers ──────► run_dbt_silver_customers┘

@@ -5,8 +5,6 @@ Model: GPT-4o-mini
 Token budget: 1200 input, 300 output
 Task type: Multi-class classification with confidence
 
-Blueprint reference: Section 10.2
-
 Includes category definitions, boundary cases, and few-shot examples
 covering the tricky classification boundaries.
 """

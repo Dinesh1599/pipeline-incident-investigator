@@ -3,7 +3,7 @@ failure_callback.py — Airflow on_failure_callback for the sales pipeline.
 
 When a task fails, this callback captures the incident context (dag_id,
 task_id, run_id, etc.) and posts it to the investigator-api. This is the
-automatic trigger path described in blueprint Section 8 (Stage 1).
+automatic trigger path.
 
 Placed in airflow/plugins/ so it is importable from DAG files.
 """

@@ -3,7 +3,9 @@ signal_extractor.py — Node 3: Signal Extractor
 
 Two paths:
     1. Log-based: Truncates log, runs regex + LLM extraction
-    2. Question-based: Sends question to dedicated question parser
+    2. Question-based: Discovers pipeline tables, sends question
+       to dedicated question parser
+
 """
 
 import logging
@@ -12,11 +14,15 @@ from agent.state import InvestigationState
 from agent.prompts import extraction
 from agent.prompts import question_parser
 from agent.evidence.log_parser import truncate_log, extract_signals_regex
+from agent.connectors.postgres_connector import PostgresConnector
 from agent.utils.config import MODELS
 from agent.utils.context_budget import get_output_budget
 from agent.utils.llm_caller import call_llm_json
 
 logger = logging.getLogger(__name__)
+
+# Schemas that represent medallion layers
+MEDALLION_SCHEMAS = ["bronze", "silver", "gold", "raw", "staging", "clean", "intermediate", "mart", "analytics"]
 
 
 def signal_extractor_node(state: InvestigationState) -> dict:
@@ -95,8 +101,11 @@ def _extract_from_question(
     dbt_model: str | None,
     state: InvestigationState,
 ) -> dict:
-    """Extract investigation targets from a user question using the question parser."""
+    """Extract investigation targets from a user question."""
     logger.info("[SIGNALS] Parsing user question: '%s'", question[:100])
+
+    # Discover available tables from the database
+    available_tables = _discover_pipeline_tables()
 
     lineage = state.get("lineage_context", {})
     pipeline_context = {
@@ -105,7 +114,12 @@ def _extract_from_question(
         "upstream_sources": lineage.get("upstream_sources", []),
     }
 
-    user_msg = question_parser.build_user_message(question, pipeline_context)
+    user_msg = question_parser.build_user_message(
+        question,
+        pipeline_context=pipeline_context,
+        available_tables=available_tables,
+    )
+
     parsed = call_llm_json(
         model=MODELS["signal_extraction"],
         system_prompt=question_parser.SYSTEM_PROMPT,
@@ -139,7 +153,6 @@ def _extract_from_question(
         "parsed_question": parsed,
     }
 
-    # Build target_objects from parsed question
     target_objects = _build_target_objects_from_question(parsed, state)
 
     logger.info(
@@ -155,22 +168,106 @@ def _extract_from_question(
     }
 
 
+def _discover_pipeline_tables() -> list[dict]:
+    """Discover all tables across medallion schemas from the database.
+
+    Queries INFORMATION_SCHEMA to find all tables in schemas that
+    match medallion layer naming conventions, along with their columns.
+    Works with any medallion architecture setup.
+    """
+    try:
+        pg = PostgresConnector()
+
+        # First, find all schemas that look like medallion layers
+        schema_result = pg.execute_query(
+            "SELECT schema_name FROM information_schema.schemata "
+            "WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast') "
+            "ORDER BY schema_name"
+        )
+
+        if not schema_result["rows"]:
+            return []
+
+        available = []
+
+        for row in schema_result["rows"]:
+            schema = row["schema_name"]
+
+            # Get all tables in this schema
+            table_result = pg.execute_query(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = %s AND table_type = 'BASE TABLE' "
+                "ORDER BY table_name",
+                (schema,),
+            )
+
+            for table_row in table_result["rows"]:
+                table_name = table_row["table_name"]
+
+                # Get columns for this table
+                col_result = pg.execute_query(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = %s AND table_name = %s "
+                    "ORDER BY ordinal_position",
+                    (schema, table_name),
+                )
+
+                columns = [c["column_name"] for c in col_result["rows"]]
+
+                # Get date range for date columns
+                date_range = None
+                date_cols = [c for c in columns if "date" in c.lower() or "time" in c.lower()]
+                if date_cols:
+                    range_result = pg.execute_query(
+                        f"SELECT MIN({date_cols[0]}) AS min_date, MAX({date_cols[0]}) AS max_date "
+                        f"FROM {schema}.{table_name} LIMIT 1"
+                    )
+                    if range_result["rows"]:
+                        date_range = {
+                            "column": date_cols[0],
+                            "min": str(range_result["rows"][0].get("min_date", "")),
+                            "max": str(range_result["rows"][0].get("max_date", "")),
+                        }
+
+                available.append({
+                    "schema": schema,
+                    "table": table_name,
+                    "columns": columns,
+                    "date_range": date_range,
+                })
+
+                available.append({
+                    "schema": schema,
+                    "table": table_name,
+                    "columns": columns,
+                })
+
+        logger.info(
+            "[SIGNALS] Discovered %d tables across schemas: %s",
+            len(available),
+            list(set(t["schema"] for t in available)),
+        )
+
+        return available
+
+    except Exception as e:
+        logger.error("[SIGNALS] Failed to discover pipeline tables: %s", e)
+        return []
+
+
 def _build_target_objects_from_question(parsed: dict, state: InvestigationState) -> dict:
     """Build target objects from parsed question output."""
     target = {}
 
-    # Primary table to check
     tables = parsed.get("tables_to_check", [])
     if tables:
         target["schema"] = tables[0].get("schema", "bronze")
         target["table"] = tables[0].get("table", "")
 
-    # Columns of interest
     columns = parsed.get("columns_of_interest", [])
     if columns:
         target["column"] = columns[0]
 
-    # Date filter
     date_filter = parsed.get("date_filter", {})
     if date_filter.get("value"):
         target["date_value"] = date_filter["value"]
@@ -180,8 +277,6 @@ def _build_target_objects_from_question(parsed: dict, state: InvestigationState)
         target["date_column"] = "order_date"
 
     target.setdefault("timestamp_column", target.get("date_column", "order_date"))
-
-    # Store check priorities for evidence analyzer
     target["check_priorities"] = parsed.get("check_priorities", [])
 
     return target

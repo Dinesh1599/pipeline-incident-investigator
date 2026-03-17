@@ -2,9 +2,7 @@
 embedding_service.py — Generates embeddings using OpenAI text-embedding-3-small
 and provides vector similarity search against the incidents table in investigator_db.
 
-Blueprint reference: Section 13 (Incident Memory), Section 9.2 (Node 9: Incident Retriever)
-
-Embedding strategy (from blueprint):
+Embedding strategy:
     Embed a concatenation of the incident summary and root cause fields.
     This captures both the symptom and the explanation, improving retrieval relevance.
     Cost: ~$0.00002 per embedding.
@@ -48,7 +46,7 @@ def generate_embedding(text: str) -> list[float]:
 def build_embedding_text(summary: str, root_cause: str) -> str:
     """Concatenate summary and root cause for embedding.
 
-    From blueprint Section 13: 'Embed a concatenation of the incident
+    'Embed a concatenation of the incident
     summary and root cause fields. This captures both the symptom and
     the explanation, which improves retrieval relevance.'
     """
@@ -77,7 +75,7 @@ def search_similar_incidents(
 ) -> list[dict]:
     """Find the top-k most similar past incidents using vector cosine similarity.
 
-    From blueprint Section 13: 'Use hybrid search: vector similarity for
+    'Use hybrid search: vector similarity for
     semantic matching combined with metadata filtering for structural matching.
     Filter by failure_class (if classified), then rank by vector cosine similarity.
     Return top 3 results. Send only summary, root_cause, and fix_applied fields.'

@@ -6,9 +6,6 @@ checks that the output is valid JSON with expected fields.
 
 Requires: OPENAI_API_KEY in .env.local
 
-Blueprint reference: Sprint Plan Week 1, Day 5:
-'Test each prompt independently — send sample inputs to the
-OpenAI API and verify the output quality and format.'
 """
 
 import json

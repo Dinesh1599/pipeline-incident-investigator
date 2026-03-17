@@ -4,7 +4,7 @@ query_templates.py — Parameterized SQL evidence check templates.
 All queries are pre-defined templates with safe parameter substitution.
 No LLM-generated SQL is ever executed.
 
-Blueprint reference: Section 11 (Database Evidence Analyzer: Query Templates)
+
 
 Template selection logic: Templates are selected based on failure_class
 from the classifier. Each class triggers a specific set of templates.
@@ -204,8 +204,7 @@ def run_upstream_checks(
 ) -> list[dict]:
     """Run basic evidence checks on upstream tables.
 
-    From blueprint Section 8 (Upstream Checking): 'When direct evidence
-    at the failure point is inconclusive, the agent should check one
+    'When direct evidence at the failure point is inconclusive, the agent should check one
     level upstream using dbt depends_on.'
 
     Args:

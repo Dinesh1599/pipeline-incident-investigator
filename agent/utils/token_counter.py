@@ -5,7 +5,6 @@ Uses tiktoken to count tokens accurately for OpenAI models.
 Each LLM-calling node has a max input token budget. Before
 calling the LLM, context is truncated to fit within the budget.
 
-Blueprint reference: Section 15 (Cost and Token Management)
 """
 
 import tiktoken

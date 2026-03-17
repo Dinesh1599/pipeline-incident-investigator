@@ -5,7 +5,6 @@ Sends the dbt model SQL plus failure context and evidence results
 to GPT-4o. Identifies code constructs causing or contributing to
 the failure.
 
-Blueprint reference: Section 9.2 (Node 7), Section 10.3
 """
 
 import json

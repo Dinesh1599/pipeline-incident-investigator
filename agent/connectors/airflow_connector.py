@@ -6,7 +6,6 @@ Provides:
     - Task instance metadata (state, retries, duration, etc.)
     - DAG structure (task list and dependencies)
 
-Blueprint reference: Section 9.2 (Node 2: Context Collector), Section 8 (Targeting Logic)
 """
 
 import os

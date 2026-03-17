@@ -5,8 +5,6 @@ Each node has a defined input token budget. Before calling the LLM,
 all context pieces are measured and truncated to fit. This prevents
 exceeding model context windows and controls cost.
 
-Blueprint reference: Section 15 (Token Budget System)
-
 Budget allocations per node:
     Signal Extraction  — 800 input, 300 output
     Classification     — 1200 input, 300 output
@@ -83,7 +81,7 @@ def get_output_budget(node_name: str) -> int:
 def estimate_cost(node_name: str, input_tokens: int, output_tokens: int) -> float:
     """Estimate the cost of an LLM call in USD.
 
-    Pricing (from blueprint Section 15):
+    Pricing:
         GPT-4o-mini: $0.15/1M input, $0.60/1M output
         GPT-4o:      $2.50/1M input, $10.00/1M output
 

@@ -7,8 +7,7 @@ Provides:
     - Model SQL file reading
     - Lineage extraction from depends_on graph
 
-Blueprint reference: Section 8 (Stage 3: Model-to-Objects Resolution),
-Section 9.2 (Node 2: Context Collector, Node 8: Lineage Tracer)
+
 """
 
 import json
@@ -52,8 +51,8 @@ class DbtConnector:
     def get_model_entry(self, model_name: str) -> dict:
         """Get a specific model's entry from manifest.json.
 
-        From blueprint Section 8 (Stage 3): 'Once the dbt model is
-        identified, the agent reads its entry from manifest.json.
+        'Once the dbt model is identified, the agent reads its 
+        entry from manifest.json.
         This provides: the target table/view, all source tables
         (depends_on), the raw SQL, the schema and database, and
         any defined tests.'

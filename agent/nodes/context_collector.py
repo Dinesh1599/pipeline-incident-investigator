@@ -9,7 +9,6 @@ Fetches evidence from all available sources:
 Sets availability flags for downstream nodes.
 This is pure connector code, no LLM call.
 
-Blueprint reference: Section 9.2 (Node 2)
 """
 
 import logging
