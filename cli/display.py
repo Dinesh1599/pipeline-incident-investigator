@@ -4,7 +4,6 @@ display.py — Rich terminal output for the investigation CLI.
 Streams investigation progress as each node completes, then
 displays the final structured report with colored sections.
 
-Blueprint reference: Section 18 (CLI Interface Design)
 """
 
 from rich.console import Console

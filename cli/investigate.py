@@ -8,8 +8,6 @@ Three modes:
 
 Streams investigation progress in real time using rich library.
 
-Blueprint reference: Section 18 (CLI Interface Design)
-
 Usage:
     python cli/investigate.py --dag-id sales_pipeline --task-id run_dbt_fct_sales --run-id manual__2026-03-16T09:12:03
     python cli/investigate.py --question "Why are sales missing for March 4th?"
