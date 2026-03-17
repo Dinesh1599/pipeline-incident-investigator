@@ -6,8 +6,6 @@ on the failure class and target objects. Executes queries against
 Postgres. Formats results as structured evidence.
 
 Never generates SQL dynamically from LLM output for safety.
-
-
 """
 
 import logging
