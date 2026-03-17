@@ -1,0 +1,42 @@
+{
+  "scenario_id": "TC-001",
+  "scenario_name": "null_join_key",
+  "description": "Null customer_id in bronze.sales causes NOT NULL constraint violation in fct_sales",
+  "trigger": {
+    "pipeline_name": "sales_pipeline",
+    "dag_id": "sales_pipeline",
+    "task_id": "run_dbt_fct_sales",
+    "run_id": "manual__2026-03-17T10:50:46.078228+00:00",
+    "severity": "error",
+    "error_message": "Bash command failed. The command returned a non-zero exit code 1."
+  },
+  "expected": {
+    "failure_class": "data_quality",
+    "expected_tables": [
+      "bronze.sales",
+      "silver_sales",
+      "fct_sales"
+    ],
+    "expected_column": "customer_id",
+    "root_cause_keywords": [
+      "null",
+      "customer_id",
+      "join",
+      "bronze",
+      "NOT NULL",
+      "constraint"
+    ],
+    "fix_should_mention": [
+      "filter",
+      "not_null",
+      "WHERE",
+      "IS NOT NULL"
+    ],
+    "prevention_should_mention": [
+      "test",
+      "validation",
+      "alert",
+      "not_null"
+    ]
+  }
+}
