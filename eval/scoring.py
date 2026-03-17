@@ -2,7 +2,7 @@
 scoring.py — Evaluation scoring rubric.
 
 Scores agent output against expected results using the
-6-point rubric from blueprint Section 16.
+6-point rubric
 
 Criteria (1.0 each, 6.0 total):
     1. Classification correct
