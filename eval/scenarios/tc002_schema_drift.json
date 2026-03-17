@@ -1,0 +1,21 @@
+{
+  "scenario_id": "TC-002",
+  "scenario_name": "schema_drift",
+  "description": "Source changed customer_id from integer to string format, breaking CAST in silver_customers",
+  "trigger": {
+    "pipeline_name": "sales_pipeline",
+    "dag_id": "sales_pipeline",
+    "task_id": "run_dbt_silver_customers",
+    "run_id": "UPDATE_WITH_REAL_RUN_ID",
+    "severity": "error",
+    "error_message": "Bash command failed. The command returned a non-zero exit code 1."
+  },
+  "expected": {
+    "failure_class": "schema_drift",
+    "expected_tables": ["bronze.customers", "silver_customers"],
+    "expected_column": "customer_id",
+    "root_cause_keywords": ["type", "cast", "integer", "CUST", "format", "non-numeric"],
+    "fix_should_mention": ["cast", "text", "remove", "handle", "regex"],
+    "prevention_should_mention": ["schema", "contract", "drift", "alert", "test", "numeric"]
+  }
+}

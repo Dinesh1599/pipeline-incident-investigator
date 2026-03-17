@@ -1,0 +1,21 @@
+{
+  "scenario_id": "TC-003",
+  "scenario_name": "missing_partition",
+  "description": "No source data for 2026-03-04, pipeline succeeds but produces incomplete output",
+  "trigger": {
+    "pipeline_name": "sales_pipeline",
+    "dag_id": "sales_pipeline",
+    "task_id": "run_dbt_fct_sales",
+    "run_id": "",
+    "severity": "warning",
+    "question": "Why are sales missing for March 4th of 2026?"
+  },
+  "expected": {
+    "failure_class": "silent_correctness",
+    "expected_tables": ["bronze.sales", "silver.silver_sales", "gold.fct_sales"],
+    "expected_column": "order_date",
+    "root_cause_keywords": ["missing", "bronze", "sales", "order_date", "2026-03-04", "source", "zero", "0"],
+    "fix_should_mention": ["backfill", "bronze", "sales", "order_date", "missing", "reprocess"],
+    "prevention_should_mention": ["alert", "zero", "row", "count", "monitor", "missing", "partition"]
+  }
+}
